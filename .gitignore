@@ -1,0 +1,10 @@
+node_modules
+<<<<<<< HEAD
+*.pyc
+__pycache__
+db.sqlite3
+.venv
+*.log
+=======
+.venv
+>>>>>>> eb37a9a (initial commit and sign up module done db not connected)
