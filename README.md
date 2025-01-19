@@ -23,7 +23,7 @@ Make sure you have the following installed before running the project:
 
 First, clone the repository to your local machine:
 
-```bash
+```
 git clone https://github.com/krishspatel0605/IBM-HealthCare-Project.git
 cd IBM-HealthCare-Project
 ```
@@ -33,7 +33,59 @@ cd IBM-HealthCare-Project
 ### a. Create a Virtual Environment
 To avoid conflicts with other Python projects, it's best to create a virtual environment:
 
-```bash
+```
     python -m venv .venv
 ```
 
+### b. activate the virtual Environment 
+for windows 
+
+``` 
+.venv\Scripts\activate
+```
+for macOS/linux 
+
+``` 
+source .venv/bin/activate
+```
+### c. Install Dependencies
+Once the virtual environment is activated, install the required packages:
+
+``` 
+pip install -r healthcare_app_backend/requirements.txt
+```
+### d. Run Migrations
+Make sure your database is set up with the required tables:
+
+``` 
+python manage.py migrate
+```
+### e. Run the Backend Server
+To start the backend server, run:
+
+``` 
+python manage.py runserver
+```
+### API will be running at http://127.0.0.1:8000/.
+
+### 3. Set Up the Frontend (React)
+a. Navigate to the Frontend Directory
+
+``` 
+cd healthcare-app_frontend
+```
+
+###b. Install Dependencies
+Use npm to install the necessary packages for the frontend:
+
+``` 
+npm install
+```
+### c. Start the Frontend Server
+To start the React development server, run:
+
+```
+npm start
+```
+
+This will open the frontend application in your default browser, usually at http://localhost:3000/.
