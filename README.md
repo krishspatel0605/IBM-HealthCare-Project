@@ -66,7 +66,7 @@ To start the backend server, run:
 ``` 
 python manage.py runserver
 ```
-### API will be running at http://127.0.0.1:8000/.
+ API will be running at http://127.0.0.1:8000/.
 
 ### 3. Set Up the Frontend (React)
 a. Navigate to the Frontend Directory
