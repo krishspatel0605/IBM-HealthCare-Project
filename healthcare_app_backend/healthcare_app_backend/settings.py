@@ -78,13 +78,28 @@ WSGI_APPLICATION = "healthcare_app_backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.sqlite3",
+#         "NAME": BASE_DIR / "db.sqlite3",
+#     }
+# }
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'djongo',
+        
+        'NAME': 'Healthcare',
+        'CLIENT': {
+            'host': 'mongodb://localhost:27017/', # Replace with your MongoDB server address
+            'port': 27017,               # Replace with your MongoDB port if different
+            # 'username': 'Krishspatel06', # Replace with your MongoDB username (optional)
+            # 'password': 'IBMhealthcare@0605', # Replace with your MongoDB password (optional)
+            'authSource': 'admin',
+            # 'authMechanism': 'SCRAM-SHA-1',
+        },
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

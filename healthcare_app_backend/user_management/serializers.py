@@ -30,6 +30,7 @@ class UserSerializer(serializers.ModelSerializer):
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name']
         )
-        # Optional: Attach mobile_number and role to user (e.g., using a Profile model)
+        # You can handle the role and mobile_number as needed
+        
         return user
-# can i display mobile number and role in the admin panel as well?
+

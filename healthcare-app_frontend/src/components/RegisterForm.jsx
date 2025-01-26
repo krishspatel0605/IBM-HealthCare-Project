@@ -27,11 +27,7 @@ const RegisterForm = () => {
     };
   
     try {
-<<<<<<< HEAD
       const response = await axios.post('http://localhost:8000/api/register/', userData);
-=======
-      const response = await axios.post('g', userData);
->>>>>>> eb37a9a (initial commit and sign up module done db not connected)
   
       // Check if response.data exists
       if (response && response.data) {
@@ -47,7 +43,7 @@ const RegisterForm = () => {
         setError(err.response.data.message);
       } else {
         setError('An error occurred. Please try again later.');
-    
+      
       }
       setMessage('');
     }
