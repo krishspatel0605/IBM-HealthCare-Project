@@ -1,36 +1,58 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from .models import HealthcareUser
+from django.contrib.auth.hashers import make_password
 
-class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-    confirm_password = serializers.CharField(write_only=True)  # Add confirm_password
-    mobile_number = serializers.CharField(write_only=True)    # Add mobile_number
-    role = serializers.CharField(write_only=True)             # Add role
-
+class HealthcareUserSerializer(serializers.ModelSerializer):
+    confirm_password = serializers.CharField(write_only=True, required=True, error_messages={
+        "required": "Confirm password is required."
+    })
+    
     class Meta:
-        model = User
-        fields = ['first_name', 'last_name', 'email', 'password', 'confirm_password', 'mobile_number', 'role']
+        model = HealthcareUser
+        fields = ['id','first_name', 'last_name', 'email', 'mobile_number', 'role', 'password', 'confirm_password']
+        extra_kwargs = {
+            'first_name': {'required': True, 'error_messages': {'required': 'First name is required.'}},
+            'last_name': {'required': True, 'error_messages': {'required': 'Last name is required.'}},
+            'email': {
+                'required': True, 
+                'error_messages': {'required': 'Email is required.', 'invalid': 'Enter a valid email address.'}
+            },
+            'mobile_number': {
+                'required': True, 
+                'error_messages': {'required': 'Mobile number is required.'}
+            },
+            'password': {
+                'required': True,
+                'min_length': 8,
+                'error_messages': {
+                    'required': 'Password is required.',
+                    'min_length': 'Password must be at least 8 characters long.'
+                }
+            }
+        }
 
-    def validate(self, attrs):
-        # Check if password and confirm_password match
-        if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"password": "Passwords do not match."})
-        return attrs
+    def validate_email(self, value):
+        """ Ensure the email is unique. """
+        if HealthcareUser.objects.filter(email=value).exists():
+            raise serializers.ValidationError("This email is already registered.")
+        return value
+
+    def validate_mobile_number(self, value):
+        """ Ensure the mobile number contains only digits and is of valid length. """
+        if not value.isdigit():
+            raise serializers.ValidationError("Mobile number should contain only digits.")
+        if len(value) != 10:
+            raise serializers.ValidationError("Mobile number must be exactly 10 digits long.")
+        return value
+
+    def validate(self, data):
+        """ Ensure password and confirm_password match. """
+        if data.get('password') != data.get('confirm_password'):
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return data
 
     def create(self, validated_data):
-        # Remove confirm_password from validated_data
-        validated_data.pop('confirm_password')
-        role = validated_data.pop('role')  # You can handle this separately if needed
-        mobile_number = validated_data.pop('mobile_number')  # Handle this as needed
-
-        user = User.objects.create_user(
-            username=validated_data['email'],
-            email=validated_data['email'],
-            password=validated_data['password'],
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name']
-        )
-        # You can handle the role and mobile_number as needed
-        
-        return user
-
+        """ Remove confirm_password and hash password before saving the user. """
+        validated_data.pop('confirm_password', None)
+        validated_data['password'] = make_password(validated_data['password'])  # Hash the password
+        return HealthcareUser.objects.create(**validated_data)
