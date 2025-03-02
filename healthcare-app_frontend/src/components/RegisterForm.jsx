@@ -1,150 +1,238 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import healthcareImage from '../assets/healthcare.jpg'; // Make sure to provide the correct path to the image
+import healthcareImage from '../assets/healthcare.jpg'; // Ensure the path is correct
 
 const RegisterForm = () => {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [role, setRole] = useState('patient');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobileNumber: '',
+    role: 'patient',
+    password: '',
+    confirmPassword: '',
+  });
+
+  const [errors, setErrors] = useState({});
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setErrors({ ...errors, [e.target.name]: '' });
+
+    // Real-time email validation
+    if (e.target.name === 'email' && !e.target.value.includes('@')) {
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        email: 'Please enter a valid email address.',
+      }));
+    }
+
+    // Real-time password validation
+    if (e.target.name === 'password' && e.target.value.length < 6) {
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        password: 'Password must be at least 6 characters.',
+      }));
+    }
+
+    // Clear error when the user starts typing confirm password
+    if (e.target.name === 'confirmPassword') {
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        confirm_password: e.target.value !== formData.password ? 'Passwords do not match.' : '',
+      }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+
+    let validationErrors = {};
+    if (!formData.firstName) validationErrors.first_name = "First name is required.";
+    if (!formData.lastName) validationErrors.last_name = "Last name is required.";
+    if (!formData.email.includes("@")) validationErrors.email = "Enter a valid email.";
+    if (formData.password.length < 6) validationErrors.password = "Password must be at least 6 characters.";
+    if (formData.password !== formData.confirmPassword) validationErrors.confirm_password = "Passwords do not match.";
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
     const userData = {
-      first_name: firstName,
-      last_name: lastName,
-      email: email,
-      mobile_number: mobileNumber,
-      role: role,
-      password: password,
-      confirm_password: confirmPassword
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      email: formData.email,
+      mobile_number: formData.mobileNumber,
+      role: formData.role,
+      password: formData.password,
+      confirm_password: formData.confirmPassword,
     };
-  
+
     try {
       const response = await axios.post('http://localhost:8000/api/register/', userData);
-  
-      // Check if response.data exists
+
       if (response && response.data) {
-        setMessage(response.data.message);
-        setError('');
+        setMessage(response.data.message || "Registration successful!");
+        setErrors({});
       } else {
-        setError('Unexpected response format');
         setMessage('');
+        setErrors({ general: "Unexpected response from server." });
       }
     } catch (err) {
-      // Check if err.response is defined
       if (err.response && err.response.data) {
-        setError(err.response.data.message);
+        console.log('Error Response:', err.response.data);
+        const fieldErrors = err.response.data.details || {};
+        setErrors(fieldErrors);
       } else {
-        setError('An error occurred. Please try again later.');
-      
+        setErrors({ general: 'Failed to connect to server. Please try again later.' });
       }
       setMessage('');
     }
-    
   };
-  
-  
+
+  const isFormValid = () => {
+    return !Object.keys(errors).length && Object.values(formData).every((field) => field !== '');
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
+  };
+
   return (
-    <div className="flex justify-center items-center min-h-screen bg-[#0B648B]">
-      <div className="bg-[#BFE7F9] rounded-lg shadow-lg flex max-w-6xl rounded-2xl overflow-hidden">
-        
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex justify-center items-center">
+      <div className="bg-white shadow-lg flex max-w-4xl w-full rounded-2xl overflow-hidden">
         {/* Left Section: Image */}
-        <div className="flex justify-start items-start w-1/2 py-0 max-h-cover overflow-hidden">
-          <img
-            src={healthcareImage}
-            alt="Healthcare"
-            className="w-[380px] h-[621px] object-cover rounded-lg"
-          />
+        <div className="hidden md:flex md:w-1/2">
+          <img src={healthcareImage} alt="Healthcare" className="object-cover w-full h-full" />
         </div>
 
         {/* Right Section: Form */}
-        <div className="w-10/12 flex justify-center items-center p-16">
-          <div className="w-full max-w-md">
-            <h2 className="text-4xl font-bold mb-4 text-center text-[#262626]">Create Account</h2>
+        <div className="w-full md:w-1/2 p-8 bg-blue-100 flex flex-col items-center justify-center">
+          <div className="w-full max-w-sm px-4">
+            <h2 className="text-3xl font-bold mb-6 text-center text-gray-800">Create Account</h2>
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="border rounded-md p-2 w-full"
-                />
-                <input
-                  type="text"
-                  placeholder="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="border rounded-md p-2 w-full"
-                />
+                <div>
+                  <input
+                    type="text"
+                    name="firstName"
+                    placeholder="First Name"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    className="border border-gray-300 rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-600"
+                  />
+                  {errors.first_name && <p className="text-red-600 text-sm">{errors.first_name}</p>}
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    name="lastName"
+                    placeholder="Last Name"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    className="border border-gray-300 rounded-lg p-3 w-full focus:ring-2 focus:ring-blue-600"
+                  />
+                  {errors.last_name && <p className="text-red-600 text-sm">{errors.last_name}</p>}
+                </div>
               </div>
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="border rounded-md p-2 w-full mt-4"
-              />
-              <input
-                type="text"
-                placeholder="Mobile Number"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
-                className="border rounded-md p-2 w-full mt-4"
-              />
-              <div className="mt-4 flex items-center">
-                <label className="mr-4">
+              <div>
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-lg p-3 w-full mt-4 focus:ring-2 focus:ring-blue-600"
+                />
+                {errors.email && <p className="text-red-600 text-sm">{errors.email}</p>}
+              </div>
+              <div>
+                <input
+                  type="text"
+                  name="mobileNumber"
+                  placeholder="Mobile Number"
+                  value={formData.mobileNumber}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-lg p-3 w-full mt-4 focus:ring-2 focus:ring-blue-600"
+                />
+                {errors.mobile_number && <p className="text-red-600 text-sm">{errors.mobile_number}</p>}
+              </div>
+
+              <div className="mt-4 flex items-center space-x-4">
+                <label className="flex items-center space-x-2">
                   <input
                     type="radio"
                     name="role"
                     value="patient"
-                    checked={role === 'patient'}
-                    onChange={() => setRole('patient')}
-                  /> Patient
+                    checked={formData.role === 'patient'}
+                    onChange={handleChange}
+                  />
+                  <span className="text-gray-700">Patient</span>
                 </label>
-                <label>
+                <label className="flex items-center space-x-2">
                   <input
                     type="radio"
                     name="role"
                     value="doctor"
-                    checked={role === 'doctor'}
-                    onChange={() => setRole('doctor')}
-                  /> Doctor
+                    checked={formData.role === 'doctor'}
+                    onChange={handleChange}
+                  />
+                  <span className="text-gray-700">Doctor</span>
                 </label>
               </div>
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="border rounded-md p-2 w-full mt-4"
-              />
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="border rounded-md p-2 w-full mt-4"
-              />
+
+              <div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-lg p-3 w-full mt-4 focus:ring-2 focus:ring-blue-600"
+                />
+                <button type="button" onClick={togglePasswordVisibility} className="text-blue-600 mt-2">
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+                {errors.password && <p className="text-red-600 text-sm">{errors.password}</p>}
+              </div>
+              <div>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  placeholder="Confirm Password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded-lg p-3 w-full mt-4 focus:ring-2 focus:ring-blue-600"
+                />
+                <button type="button" onClick={toggleConfirmPasswordVisibility} className="text-blue-600 mt-2">
+                  {showConfirmPassword ? 'Hide' : 'Show'}
+                </button>
+                {errors.confirm_password && <p className="text-red-600 text-sm">{errors.confirm_password}</p>}
+              </div>
+
               <button
                 type="submit"
-                className="bg-[#0B648B] text-white rounded p-2 w-full mt-6"
+                className={`bg-blue-600 text-white px-6 py-3 rounded-full w-full mt-6 ${!isFormValid() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'}`}
+                // disabled={!isFormValid()}
               >
                 Create Account
               </button>
             </form>
-            {message && <p className="text-green-500 mt-4 text-center">{message}</p>}
-            {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
-            <p className="text-center mt-4">
-              Already have an account?{" "}
-              <a href="/login" className="text-[#0B648B]">
+
+            {message && <p className="text-green-600 mt-4 text-center">{message}</p>}
+            {errors.general && <p className="text-red-600 mt-4 text-center">{errors.general}</p>}
+
+            <p className="text-center mt-6">
+              Already have an account?{' '}
+              <a href="/login" className="text-blue-600 hover:text-blue-700 transition-colors">
                 Login
               </a>
             </p>
