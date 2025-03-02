@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from mongoengine import connect
+
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,6 +34,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'user_management',
+    'hospital',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -38,8 +43,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'user_management',
     'corsheaders',
+    'rest_framework_simplejwt'
 ]
 
 MIDDLEWARE = [
@@ -85,21 +90,33 @@ WSGI_APPLICATION = "healthcare_app_backend.wsgi.application"
 #     }
 # }
 
+
 DATABASES = {
     'default': {
         'ENGINE': 'djongo',
-        
         'NAME': 'Healthcare',
         'CLIENT': {
-            'host': 'mongodb://localhost:27017/', # Replace with your MongoDB server address
-            'port': 27017,               # Replace with your MongoDB port if different
-            # 'username': 'Krishspatel06', # Replace with your MongoDB username (optional)
-            # 'password': 'IBMhealthcare@0605', # Replace with your MongoDB password (optional)
-            'authSource': 'admin',
-            # 'authMechanism': 'SCRAM-SHA-1',
-        },
+            'host': 'localhost',
+            'port': 27017,
+        }
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'djongo',
+        
+#         'NAME': 'Healthcare',
+#         'CLIENT': {
+#             'host': 'mongodb://localhost:27017/', # Replace with your MongoDB server address
+#             'port': 27017,               # Replace with your MongoDB port if different
+#             # 'username': 'Krishspatel06', # Replace with your MongoDB username (optional)
+#             # 'password': 'IBMhealthcare@0605', # Replace with your MongoDB password (optional)
+#             'authSource': 'admin',
+#             # 'authMechanism': 'SCRAM-SHA-1',
+#         },
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -133,7 +150,7 @@ USE_TZ = True
 
 DEBUG = True
 
-
+DJONGO_USE_NATIVE_JSONFIELD = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
@@ -146,6 +163,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
 ]
+
+# AUTH_USER_MODEL = 'user_management.HealthcareUser'
+# settings.py
+
