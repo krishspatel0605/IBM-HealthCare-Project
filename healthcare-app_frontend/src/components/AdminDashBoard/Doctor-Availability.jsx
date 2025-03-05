@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, CardContent, Typography } from '@mui/material';
+import { Card, CardContent,  } from '@mui/material';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 
 // Sample data for the Pie chart

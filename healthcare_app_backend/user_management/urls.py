@@ -7,3 +7,6 @@ urlpatterns = [
  path('api/healthcare-users/', HealthcareUserListView.as_view(), name='healthcare-user-list'),
  path('api/admin-login/', LoginView.as_view(), name='login'),   
 ]
+
+
+

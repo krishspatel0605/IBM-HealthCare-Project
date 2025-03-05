@@ -1,12 +1,25 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FiMenu, FiX, FiLogOut, FiUser } from "react-icons/fi";
+import { 
+  FiMenu, 
+  FiX, 
+  FiLogOut, 
+  FiUser, 
+  FiHome, 
+  FiUsers,
+  FiActivity,
+  FiCalendar,
+  FiBarChart2,
+  FiBriefcase
+} from "react-icons/fi";
+import { motion } from "framer-motion";
 import BedAvailability from './AdminDashBoard/Bed-Availability';
 import RecentAdmissions from './AdminDashBoard/Recent-Admission';
 import DoctorAvailability from './AdminDashBoard/Doctor-Availability';
 import StatCards from './AdminDashBoard/Stat-Cards';
 import UsersList from './AdminDashBoard/userlist';
 import PatientsByDisease from './AdminDashBoard/Patient-Disease';
+
 
 const navItems = [
   { name: "Dashboard", component: <StatCards /> },

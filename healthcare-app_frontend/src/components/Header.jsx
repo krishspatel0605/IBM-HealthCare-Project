@@ -1,8 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { FaHospital, FaStethoscope, FaUserMd } from "react-icons/fa";
-import Autocomplete from "@mui/material/Autocomplete";
-import TextField from "@mui/material/TextField";
+import { FaHospital,  FaUserMd } from "react-icons/fa";
+
 
 const Header = ({ diseaseOptions, handleSearch, searchValue, fetchHospitals, handleLogOut }) => {
   return (

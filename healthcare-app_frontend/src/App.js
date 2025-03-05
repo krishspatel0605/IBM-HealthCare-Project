@@ -9,6 +9,7 @@ import Login from './components/AdminDashBoard/admin-login';
 // import ProtectedRoute from './components/ProtectedRoute';
 import HospitalDetails from './components/HospitalDetails';
 
+
 function App() {
   return (
     <Router>
@@ -16,7 +17,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginForm />} />
         <Route path="/register" element={<RegisterForm />} />
-        <Route path="/hospitaldetails" element={<HospitalDetails />} />
+        <Route path="/hospitaldetail" element={<HospitalDetails />} />
         {/* ✅ Use ProtectedRoute properly */}
         <Route path="/userhome" element={<UserHome />} />
 
