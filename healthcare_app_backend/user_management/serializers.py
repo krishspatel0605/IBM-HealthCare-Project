@@ -56,3 +56,5 @@ class HealthcareUserSerializer(serializers.ModelSerializer):
         validated_data.pop('confirm_password', None)
         validated_data['password'] = make_password(validated_data['password'])  # Hash the password
         return HealthcareUser.objects.create(**validated_data)
+
+
