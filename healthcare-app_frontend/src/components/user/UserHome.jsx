@@ -128,7 +128,7 @@ export default function DoctorSearch() {
             <Link to="/" className="flex items-center gap-2">
               <FaUserMd className="text-3xl text-blue-600" />
               <span className="text-2xl font-bold text-blue-600">
-                Med<span className="text-teal-600">Connect</span>
+                Health<span className="text-teal-600">Care</span>
               </span>
             </Link>
 
@@ -354,7 +354,7 @@ export default function DoctorSearch() {
             <div className="space-y-4">
               <h3 className="text-2xl font-bold flex items-center gap-2">
                 <FaUserMd className="text-2xl" />
-                MedConnect
+                HealthCare
               </h3>
               <p className="text-gray-400">
                 Connecting patients with trusted medical professionals

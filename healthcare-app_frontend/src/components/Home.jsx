@@ -28,7 +28,7 @@ export default function DoctorPlatform() {
             <Link to="/" className="flex items-center gap-2">
               <FaUserMd className="text-3xl text-blue-600" />
               <span className="text-2xl font-bold text-blue-600">
-                Med<span className="text-teal-600">Connect</span>
+                Health<span className="text-teal-600">Care</span>
               </span>
             </Link>
 
@@ -278,7 +278,7 @@ export default function DoctorPlatform() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>© 2025 MedConnect. Professional Medical Network</p>
+            <p>© 2025 HealthCare. Professional Medical Network</p>
           </div>
         </div>
       </footer>
