@@ -114,9 +114,9 @@ const RegisterForm = () => {
     }
   };
 
-  const isFormValid = () => {
-    return !Object.keys(errors).length && Object.values(formData).every((field) => field !== '');
-  };
+  // const isFormValid = () => {
+  //   return !Object.keys(errors).length && Object.values(formData).every((field) => field !== '');
+  // };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -336,12 +336,8 @@ const RegisterForm = () => {
 
             <button
               type="submit"
-              disabled={!isFormValid()}
-              className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-                isFormValid()
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
+              // disabled={!()}
+              className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 'bg-blue-600 hover:bg-blue-700 text-white `}
             >
               <RiShieldUserFill className="text-lg" />
               Create Account
