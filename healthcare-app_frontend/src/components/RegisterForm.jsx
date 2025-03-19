@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import healthcareImage from '../assets/healthcare.jpg';
 import { FaUser, FaLock, FaEnvelope, FaPhone, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
 import { RiEyeFill, RiEyeOffFill, RiShieldUserFill } from 'react-icons/ri';
 import { MdPassword } from 'react-icons/md';
 
 const RegisterForm = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     mobileNumber: '',
-    role: 'patient',
+    role: '',
     password: '',
     confirmPassword: '',
+    specialization: '',
+    experience: 0
   });
 
   const [errors, setErrors] = useState({});
@@ -74,8 +78,16 @@ const RegisterForm = () => {
     if (!formData.firstName) validationErrors.first_name = "First name is required.";
     if (!formData.lastName) validationErrors.last_name = "Last name is required.";
     if (!formData.email.includes("@")) validationErrors.email = "Enter a valid email.";
+    if (!formData.mobileNumber) validationErrors.mobile_number = "Mobile number is required.";
+    if (formData.mobileNumber && (!/^\d+$/.test(formData.mobileNumber) || formData.mobileNumber.length !== 10)) 
+      validationErrors.mobile_number = "Mobile number must be exactly 10 digits.";
     if (formData.password.length < 6) validationErrors.password = "Password must be at least 6 characters.";
     if (formData.password !== formData.confirmPassword) validationErrors.confirm_password = "Passwords do not match.";
+    
+    // Validate doctor-specific fields
+    if (formData.role === 'doctor' && !formData.specialization) {
+      validationErrors.specialization = "Specialization is required for doctors.";
+    }
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -92,21 +104,52 @@ const RegisterForm = () => {
       confirm_password: formData.confirmPassword,
     };
 
+    // Add doctor-specific fields if role is doctor
+    if (formData.role === 'doctor') {
+      userData.specialization = formData.specialization || 'General';
+      userData.experience = formData.experience || 0;
+    }
+
     try {
       const response = await axios.post('http://localhost:8000/api/register/', userData);
+      // The backend already handles doctor creation when role='doctor'
 
       if (response && response.data) {
-        setMessage(response.data.message || "Registration successful!");
+        setMessage(response.data.message || "Registration successful! Redirecting to login...");
         setErrors({});
+        
+        // Redirect to login page after a short delay to show the success message
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
       } else {
         setMessage('');
         setErrors({ general: "Unexpected response from server." });
       }
     } catch (err) {
-      if (err.response && err.response.data) {
-        console.log('Error Response:', err.response.data);
-        const fieldErrors = err.response.data.details || {};
-        setErrors(fieldErrors);
+      console.error('Registration Error:', err);
+      
+      if (err.response) {
+        console.log('Error Status:', err.response.status);
+        console.log('Error Headers:', err.response.headers);
+        console.log('Error Data:', err.response.data);
+        
+        // Handle field errors from Django/DRF
+        const fieldErrors = {};
+        const errorData = err.response.data;
+        
+        // Parse errors from different formats that Django/DRF might return
+        if (typeof errorData === 'object') {
+          Object.keys(errorData).forEach(key => {
+            if (Array.isArray(errorData[key])) {
+              fieldErrors[key] = errorData[key][0]; // Take first error message
+            } else if (typeof errorData[key] === 'string') {
+              fieldErrors[key] = errorData[key];
+            }
+          });
+        }
+        
+        setErrors(Object.keys(fieldErrors).length > 0 ? fieldErrors : { general: 'Registration failed. Please try again.' });
       } else {
         setErrors({ general: 'Failed to connect to server. Please try again later.' });
       }
@@ -264,6 +307,39 @@ const RegisterForm = () => {
                 </button>
               </div>
             </div>
+
+            {/* Doctor-specific fields */}
+            {formData.role === 'doctor' && (
+              <>
+                <div>
+                  <label className="block text-gray-700 mb-2 font-medium">Specialization</label>
+                  <input
+                    type="text"
+                    name="specialization"
+                    placeholder="e.g., Cardiology, Neurology, etc."
+                    value={formData.specialization}
+                    onChange={handleChange}
+                    className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                  {errors.specialization && (
+                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
+                      <FaExclamationTriangle className="flex-shrink-0" /> {errors.specialization}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-2 font-medium">Years of Experience</label>
+                  <input
+                    type="number"
+                    name="experience"
+                    min="0"
+                    value={formData.experience}
+                    onChange={handleChange}
+                    className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-gray-700 mb-2 font-medium">Password</label>

@@ -6,8 +6,10 @@ import RegisterForm from './components/RegisterForm';
 import UserHome from './components/user/UserHome';
 import DashboardPage from './components/AdminDashboard';
 import Login from './components/AdminDashBoard/admin-login';
-// import ProtectedRoute from './components/ProtectedRoute';
+import DoctorFinder from './components/DoctorFinder';
+import ProtectedRoute from './components/ProtectedRoute';
 import HospitalDetails from './components/HospitalDetails';
+import About from './components/About';
 
 
 function App() {
@@ -18,10 +20,11 @@ function App() {
         <Route path="/login" element={<LoginForm />} />
         <Route path="/register" element={<RegisterForm />} />
         <Route path="/hospitaldetail" element={<HospitalDetails />} />
-        {/* ✅ Use ProtectedRoute properly */}
-        <Route path="/userhome" element={<UserHome />} />
-
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/find-doctors" element={<DoctorFinder />} />
+        <Route path="/about" element={<About />} />
+        {/* Protected Routes */}
+        <Route path="/userhome" element={<ProtectedRoute Component={UserHome} />} />
+        <Route path="/dashboard" element={<ProtectedRoute Component={DashboardPage} />} />
         <Route path="/admin-login" element={<Login />} />
       </Routes>
     </Router>

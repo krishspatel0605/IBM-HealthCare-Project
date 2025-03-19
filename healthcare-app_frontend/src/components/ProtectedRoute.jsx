@@ -6,7 +6,7 @@ export default function ProtectedRoute({ Component }) {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     useEffect(() => {
-        const token = localStorage.getItem("token");  // ✅ Check token in localStorage
+        const token = localStorage.getItem("auth_token") || localStorage.getItem("token");  // Check both token naming conventions
         if (!token) {
             navigate("/login");  // Redirect if not authenticated
         } else {
@@ -14,5 +14,5 @@ export default function ProtectedRoute({ Component }) {
         }
     }, [navigate]);
 
-    return isAuthenticated ? <Component /> : null; // ✅ Render component only if authenticated
+    return isAuthenticated ? <Component /> : null; // Render component only if authenticated
 }

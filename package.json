@@ -30,14 +30,17 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.13",
+    "concurrently": "^9.1.2",
     "postcss": "^8.4.14",
     "tailwindcss": "^3.0.24"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "cd healthcare-app_frontend && npm start",
+    "build": "cd healthcare-app_frontend && npm run build",
+    "test": "cd healthcare-app_frontend && npm test",
+    "eject": "cd healthcare-app_frontend && npm run eject",
+    "start-backend": "cd healthcare_app_backend && python manage.py runserver",
+    "start-all": "concurrently \"npm run start-backend\" \"npm run start\""
   },
   "browserslist": {
     "production": [

@@ -29,6 +29,23 @@ const LoginForm = () => {
       });
 
       if (response.data) {
+        // Store authentication tokens in localStorage
+        if (response.data.access) {
+          localStorage.setItem('auth_token', response.data.access);
+          localStorage.setItem('token', response.data.access); // For compatibility with ProtectedRoute
+        }
+        if (response.data.refresh) {
+          localStorage.setItem('refresh_token', response.data.refresh);
+        }
+        
+        // Also store the user's role and ID if available
+        if (response.data.user_id) {
+          localStorage.setItem('user_id', response.data.user_id);
+        }
+        if (response.data.role) {
+          localStorage.setItem('user_role', response.data.role);
+        }
+        
         setMessage('Login successful! Redirecting...');
         setTimeout(() => navigate('/userhome'), 1500);
       }
