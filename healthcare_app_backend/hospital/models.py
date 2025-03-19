@@ -29,7 +29,7 @@ class Hospital_Details(models.Model):
     
 
 class Doctor(models.Model):
-    hospital = models.ForeignKey(Hospital_Details, on_delete=models.CASCADE, related_name='doctors', null=True, blank=True)
+    hospital = models.ForeignKey(Hospital_Details, on_delete=models.CASCADE, related_name='hospital_doctors', null=True, blank=True)
     name = models.CharField(max_length=100)
     specialization = models.CharField(max_length=100)
     experience = models.IntegerField(default=0)  # Fixed the spelling from "experice" to "experience"

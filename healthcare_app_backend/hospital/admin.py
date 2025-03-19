@@ -23,3 +23,4 @@ class Hospital_Details_Admin(admin.ModelAdmin):
     inlines = [DoctorInline]  # This will show doctors inside hospital admin panel
 
 admin.site.register(Hospital_Details, Hospital_Details_Admin)
+

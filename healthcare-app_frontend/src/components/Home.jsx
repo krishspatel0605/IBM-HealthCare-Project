@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Menu, X, Calendar, Search, User, Star, ArrowRight, MessageCircle, Briefcase } from 'lucide-react';
+import { Search, User, ArrowRight, MessageCircle, Briefcase } from 'lucide-react';
 import { FaUserMd, FaStethoscope, FaClinicMedical, FaRegCalendarCheck } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 
@@ -13,10 +13,39 @@ const specialties = [
 
 export default function DoctorPlatform() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
 
+  // Check authentication status on component mount
+  useEffect(() => {
+    const authToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
+    setIsLoggedIn(!!authToken);
+  }, []);
+
   const handleSignIn = () => navigate('/login');
-  const handleCreateAccount = () => navigate('/register');
+  
+  const handleLogOut = () => {
+    // Clear all possible authentication tokens
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('user_role');
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('token');
+    
+    setIsLoggedIn(false);
+    
+    // Use a slight delay before redirecting to ensure tokens are cleared
+    setTimeout(() => {
+      // No need to redirect since we're already on the home page, just refresh
+      window.location.reload();
+    }, 100);
+  };
+  
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   return (
@@ -37,21 +66,37 @@ export default function DoctorPlatform() {
             </button>
 
             <nav className="hidden md:flex items-center gap-6">
-              {/* <Link to="/find-doctors" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
+              <Link to="/find-doctors" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
                 <FaStethoscope className="text-lg" />
-                Find Doctors
-              </Link> */}
-              <Link to="/specialties" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
+                Find Specialists
+              </Link>
+              <Link to="/about" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
                 <FaClinicMedical className="text-lg" />
                 About
               </Link>
-              <button 
-                onClick={handleSignIn}
-                className="bg-blue-600 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-md"
-              >
-                <FaUserMd className="text-lg" />
-                <span>Sign in</span>
-              </button>
+              {isLoggedIn ? (
+                <>
+                  <Link to="/userhome" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
+                    <FaRegCalendarCheck className="text-lg" />
+                    My Dashboard
+                  </Link>
+                  <button 
+                    onClick={handleLogOut}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-md"
+                  >
+                    <FaUserMd className="text-lg" />
+                    <span>Sign out</span>
+                  </button>
+                </>
+              ) : (
+                <button 
+                  onClick={handleSignIn}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-md"
+                >
+                  <FaUserMd className="text-lg" />
+                  <span>Sign in</span>
+                </button>
+              )}
             </nav>
           </div>
 
@@ -65,17 +110,27 @@ export default function DoctorPlatform() {
                 <FaStethoscope />
                 Find Doctors
               </Link> */}
-              <Link to="/specialties" className="flex items-center gap-2 text-gray-600 hover:text-blue-600 p-2 rounded-lg">
+              <Link to="/about" className="flex items-center gap-2 text-gray-600 hover:text-blue-600 p-2 rounded-lg">
                 <FaClinicMedical />
                 About
               </Link>
-              <button 
-                onClick={handleSignIn}
-                className="w-full bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 flex items-center justify-center gap-2"
-              >
-                <FaUserMd />
-                Sign in
-              </button>
+              {isLoggedIn ? (
+                <button 
+                  onClick={handleLogOut}
+                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  <FaUserMd />
+                  Sign out
+                </button>
+              ) : (
+                <button 
+                  onClick={handleSignIn}
+                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  <FaUserMd />
+                  Sign in
+                </button>
+              )}
             </motion.nav>
           )}
         </div>
@@ -101,7 +156,10 @@ export default function DoctorPlatform() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <motion.button 
                     whileHover={{ scale: 1.05 }}
-                    onClick={handleCreateAccount}
+                    onClick={() => {
+                      // localStorage.setItem('selectedAccountType', 'doctor');
+                      navigate('/register');
+                    }}
                     className="flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-full hover:bg-blue-700 transition-colors shadow-lg"
                   >
                     <Briefcase size={20} />
@@ -109,7 +167,7 @@ export default function DoctorPlatform() {
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
-                    onClick={handleCreateAccount}
+                    onClick={() => navigate('/find-doctors')}
                     className="flex items-center justify-center gap-2 bg-white text-blue-600 px-8 py-3 rounded-full border-2 border-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     <User size={20} />
@@ -146,18 +204,37 @@ export default function DoctorPlatform() {
         <section className="py-12 bg-white">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
+                Find the Right Medical Specialist for Your Needs
+              </h2>
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-grow relative">
-                  <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search doctors by specialty, condition, or location..."
-                    className="w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Search by disease, condition, or specialist name..."
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                <button className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors shadow-md">
-                  Search
-                </button>
+                <Link
+                  to="/find-doctors"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
+                >
+                  <Search size={18} />
+                  Search Specialists
+                </Link>
+              </div>
+              <div className="mt-4 text-center">
+                <span className="text-sm text-gray-500">
+                  Find specialists by disease: {" "}
+                </span>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  <Link to="/find-doctors?query=heart" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Heart Disease</Link>
+                  <Link to="/find-doctors?query=diabetes" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Diabetes</Link>
+                  <Link to="/find-doctors?query=skin" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Skin Conditions</Link>
+                  <Link to="/find-doctors?query=cancer" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Cancer</Link>
+                  <Link to="/find-doctors?query=pediatric" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Pediatric Care</Link>
+                </div>
               </div>
             </div>
           </div>
