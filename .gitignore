@@ -1,0 +1,30 @@
+venv/
+venv
+secret_file.json
+# Environment
+.env
+venv/
+*.env
+
+# Alembic migrations
+alembic/versions/*.pyc
+alembic/*.pyc
+alembic/versions/__pycache__
+script.py.mako
+
+# Python-specific
+**/__pycache__/
+__pycache__/
+*.py[cod]
+
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Other
+*.sqlite3
+*.db
