@@ -1,0 +1,31 @@
+Instructions to Remove Large File from Git History Using BFG Repo-Cleaner
+
+1. Download BFG Repo-Cleaner:
+   - Visit https://rtyley.github.io/bfg-repo-cleaner/
+   - Download the latest bfg-X.X.X.jar file.
+
+2. Place the downloaded bfg.jar file in your repository root directory (where your .git folder is).
+
+3. Run the following command to remove the large file from your Git history:
+   ```
+   java -jar bfg-X.X.X.jar --delete-files env/Lib/site-packages/xgboost/lib/xgboost.dll
+   ```
+   Replace "bfg-X.X.X.jar" with the actual filename you downloaded.
+
+4. After BFG completes, run these commands to clean and reset your repository:
+   ```
+   git reflog expire --expire=now --all
+   git gc --prune=now --aggressive
+   ```
+
+5. Finally, force push the cleaned repository to GitHub:
+   ```
+   git push -f origin main
+   ```
+
+Note:
+- Make sure you have Java installed to run the BFG jar.
+- This process rewrites your Git history. Coordinate with your team to avoid conflicts.
+- Backup your repository before proceeding.
+
+If you want, I can help you with any of these steps.
