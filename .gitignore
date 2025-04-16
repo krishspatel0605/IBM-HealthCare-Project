@@ -1,9 +1,9 @@
-venv/
-venv
+env/
+env
 secret_file.json
 # Environment
 .env
-venv/
+env/
 *.env
 
 # Alembic migrations
