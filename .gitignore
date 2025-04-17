@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 env/
 env
 secret_file.json
@@ -28,3 +29,15 @@ __pycache__/
 # Other
 *.sqlite3
 *.db
+=======
+node_modules
+<<<<<<< HEAD
+*.pyc
+__pycache__
+db.sqlite3
+.venv
+*.log
+=======
+.venv
+>>>>>>> eb37a9a (initial commit and sign up module done db not connected)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543

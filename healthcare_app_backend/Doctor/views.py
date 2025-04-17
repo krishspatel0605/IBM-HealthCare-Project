@@ -11,6 +11,7 @@ import re
 from django.shortcuts import render
 import logging
 
+<<<<<<< HEAD
 # Import the recommender components
 from recommendation_system.doctor_recommender import DoctorRecommender
 from recommendation_system.utils import (
@@ -20,12 +21,29 @@ from recommendation_system.utils import (
     get_model_path
 )
 recommender_available = True
+=======
+# Wrap the import in a try-except block to handle potential import errors
+try:
+    from recommendation_system.doctor_recommender import DoctorRecommender
+    from recommendation_system.utils import (
+        batch_preprocess_doctors,
+        save_model,
+        load_model,
+        get_model_path
+    )
+    recommender_available = True
+except ImportError as e:
+    import warnings
+    warnings.warn(f"Error importing recommendation system: {str(e)}")
+    recommender_available = False
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 
 logger = logging.getLogger(__name__)
 
 # Global variable to store the recommender model
 recommender = None
 
+<<<<<<< HEAD
 @api_view(['GET'])
 def recommend_nearest_doctors(request):
     """
@@ -85,6 +103,8 @@ def recommend_nearest_doctors(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 def get_recommender():
     """Get or initialize the recommender model"""
     global recommender
@@ -98,6 +118,7 @@ def get_recommender():
         # Try to load existing model
         try:
             model_path = get_model_path()
+<<<<<<< HEAD
             loaded_recommender = load_model(model_path)
             
             if loaded_recommender:
@@ -105,6 +126,13 @@ def get_recommender():
             else:
                 # Create new model with default parameters
                 recommender = DoctorRecommender(n_estimators=100)
+=======
+            # Try to load existing model, but don't use it if it has the old n_neighbors value
+            loaded_recommender = load_model(model_path)
+            
+            # Create a new model with larger n_neighbors value
+            recommender = DoctorRecommender(n_neighbors=50)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
             
             try:
                 # Get all doctors from database
@@ -149,7 +177,11 @@ def get_doctors(request):
 
     doctor_list = list(doctors.values(
         "id", "name", "specialization", "experience", 
+<<<<<<< HEAD
         "availability", "fee", "rating", "patients_treated"
+=======
+        "availability", "fee", "rating"
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
     ))
 
     # Store result in cache
@@ -215,6 +247,7 @@ def doctor_details_view(request, id):
 @api_view(['GET'])
 def recommend_doctors(request):
     """
+<<<<<<< HEAD
     Recommend doctors based on query condition using ML model
     """
     from user_management.models import HealthcareUser
@@ -246,6 +279,13 @@ def recommend_doctors(request):
     }
     # Remove None values to use defaults in recommender
     weights = {k: v for k, v in weights.items() if v is not None}
+=======
+    Recommend doctors based on query condition using KNN model
+    """
+    query = request.GET.get('query', '').strip()
+    sort_by = request.GET.get('sort_by', 'similarity')  # Default to similarity-based sorting
+    limit = int(request.GET.get('limit', 20))  # Default to 20, allow overriding
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
     
     if not query:
         return Response(
@@ -253,6 +293,7 @@ def recommend_doctors(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
+<<<<<<< HEAD
     # If latitude or longitude not provided, fetch first user with valid lat/lon
     if user_latitude is None or user_longitude is None:
         first_user = HealthcareUser.objects.filter(latitude__isnull=False, longitude__isnull=False).order_by('id').first()
@@ -331,6 +372,41 @@ def recommend_doctors(request):
         'results_count': len(mapped_recommendations),
         'using_ml_recommendations': True
     })
+=======
+    try:
+        # Get or initialize recommender
+        recommender = get_recommender()
+        
+        if recommender is None:
+            # Fallback to simple search if recommender is not available
+            logger.warning("Recommendation system not available, using simple search")
+            return simple_doctor_search(request)
+        
+        # Get recommendations with sorting
+        recommendations = recommender.recommend_doctors(
+            query=query,
+            sort_by=sort_by,
+            min_score=0.1,
+            limit=limit  # Use the provided limit parameter
+        )
+        
+        if not recommendations:
+            # Fallback to simple search if no recommendations
+            return simple_doctor_search(request)
+        
+        return Response({
+            'recommended_doctors': recommendations,
+            'query': query,
+            'sort_by': sort_by,
+            'results_count': len(recommendations),
+            'using_ml_recommendations': True
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in doctor recommendation: {str(e)}")
+        # Fallback to simple search on error
+        return simple_doctor_search(request)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 
 def simple_doctor_search(request):
     """
@@ -361,16 +437,38 @@ def simple_doctor_search(request):
         serialized_doctors = []
         for doctor in doctors:
             doctor_data = DoctorSerializer(doctor).data
+<<<<<<< HEAD
             # Remove matched_conditions and treats_searched_condition to focus on doctor names
             # Conditions and matched_conditions are omitted
+=======
+            conditions = doctor_data.get('conditions_treated', [])
+            
+            # Ensure conditions is a list
+            if isinstance(conditions, str):
+                conditions = [c.strip() for c in conditions.split(',')]
+            
+            # Find matched conditions
+            matched_conditions = [
+                cond for cond in conditions
+                if query in cond.lower()
+            ]
+            
+            doctor_data['matched_conditions'] = matched_conditions
+            doctor_data['treats_searched_condition'] = bool(matched_conditions)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
             
             serialized_doctors.append(doctor_data)
         
         # Sort based on criteria
         if sort_by.lower() == 'rating':
             serialized_doctors.sort(key=lambda x: (-x.get('rating', 0), -x.get('experience', 0)))
+<<<<<<< HEAD
         elif sort_by.lower() == 'patients_treated':
             serialized_doctors.sort(key=lambda x: (x.get('patients_treated', float('inf'))))
+=======
+        elif sort_by.lower() == 'fee':
+            serialized_doctors.sort(key=lambda x: (x.get('fee', float('inf'))))
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
         else:  # Default to experience
             serialized_doctors.sort(key=lambda x: (-x.get('experience', 0), -x.get('rating', 0)))
         

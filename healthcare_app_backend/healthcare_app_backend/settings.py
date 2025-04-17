@@ -12,9 +12,18 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 
+<<<<<<< HEAD
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+=======
+
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
@@ -26,6 +35,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Application definition
 
 INSTALLED_APPS = [
@@ -41,6 +54,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
+<<<<<<< HEAD
+=======
+    'djongo',
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 ]
 
 MIDDLEWARE = [
@@ -74,6 +91,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "healthcare_app_backend.wsgi.application"
 
+<<<<<<< HEAD
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
@@ -88,6 +106,47 @@ DATABASES = {
     }
 }
 
+=======
+
+# Database
+# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.sqlite3",
+#         "NAME": BASE_DIR / "db.sqlite3",
+#     }
+# }
+
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'djongo',
+        'NAME': 'Healthcare',
+        'CLIENT': {
+            'host': 'localhost',
+            'port': 27017,
+        }
+    }
+}
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'djongo',
+        
+#         'NAME': 'Healthcare',
+#         'CLIENT': {
+#             'host': 'mongodb://localhost:27017/', # Replace with your MongoDB server address
+#             'port': 27017,               # Replace with your MongoDB port if different
+#             # 'username': 'Krishspatel06', # Replace with your MongoDB username (optional)
+#             # 'password': 'IBMhealthcare@0605', # Replace with your MongoDB password (optional)
+#             'authSource': 'admin',
+#             # 'authMechanism': 'SCRAM-SHA-1',
+#         },
+#     }
+# }
+
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -106,6 +165,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -119,6 +182,10 @@ USE_TZ = True
 
 DEBUG = True
 
+<<<<<<< HEAD
+=======
+DJONGO_USE_NATIVE_JSONFIELD = True
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
@@ -131,6 +198,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+<<<<<<< HEAD
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
 ]
+=======
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+]
+
+# AUTH_USER_MODEL = 'user_management.HealthcareUser'
+# settings.py
+
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543

@@ -42,6 +42,7 @@ class RegisterHealthcareUserView(APIView):
         try:
             serializer = HealthcareUserSerializer(data=request.data)
 
+<<<<<<< HEAD
             # Check if the email is already registered - using count() instead of exists() to avoid djongo recursion
             try:
                 email = request.data.get('email')
@@ -54,6 +55,11 @@ class RegisterHealthcareUserView(APIView):
                     {"error": "Database error during registration"},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+=======
+            # Check if the email is already registered
+            if HealthcareUser.objects.filter(email=request.data.get('email')).exists():
+                return Response({"email": "This email is already registered."}, status=status.HTTP_400_BAD_REQUEST)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 
             if serializer.is_valid():
                 user = serializer.save()

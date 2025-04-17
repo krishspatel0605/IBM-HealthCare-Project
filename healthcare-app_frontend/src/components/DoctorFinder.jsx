@@ -150,10 +150,13 @@ const DoctorFinder = () => {
   const [usingDummyData, setUsingDummyData] = useState(false);
   const [sortOption, setSortOption] = useState('default');
   const [showSortMenu, setShowSortMenu] = useState(false);
+<<<<<<< HEAD
 
   // New state for user location
   const [userLatitude, setUserLatitude] = useState(null);
   const [userLongitude, setUserLongitude] = useState(null);
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
   
   // User-related state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -286,6 +289,7 @@ const DoctorFinder = () => {
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const queryFromURL = queryParams.get('query');
+<<<<<<< HEAD
 
     // Request user location on component mount
     if (navigator.geolocation) {
@@ -305,6 +309,8 @@ const DoctorFinder = () => {
       setUserLatitude(null);
       setUserLongitude(null);
     }
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
     
     // Load all doctors to check if database has data
     loadAllDoctors();
@@ -383,7 +389,11 @@ const DoctorFinder = () => {
 
   // Filter suggestions based on input
   useEffect(() => {
+<<<<<<< HEAD
     if (searchQuery && searchQuery.length > 1) {
+=======
+    if (searchQuery.length > 1) {
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
       const query = searchQuery.toLowerCase();
       const filteredConditions = COMMON_CONDITIONS.filter(c => 
         c.toLowerCase().includes(query)
@@ -479,6 +489,7 @@ const DoctorFinder = () => {
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Request timeout')), 8000)
       );
+<<<<<<< HEAD
 
       // Include sort option and user location in the API request if available
       let apiUrl = `${API_BASE_URL}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption === 'default' ? 'similarity' : sortOption}&limit=100`;
@@ -489,6 +500,13 @@ const DoctorFinder = () => {
       const apiPromise = axios.get(apiUrl);
       
       console.log(`Searching for doctors: "${query}" (sorted by: ${sortOption}) with location: ${userLatitude}, ${userLongitude}`);
+=======
+      
+      // Include sort option in the API request
+      const apiPromise = axios.get(`${API_BASE_URL}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption === 'default' ? 'similarity' : sortOption}&limit=100`);
+      
+      console.log(`Searching for doctors: "${query}" (sorted by: ${sortOption})`);
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
       setDbStatus('Connecting to database...');
       
       const response = await Promise.race([apiPromise, timeoutPromise]);
@@ -553,11 +571,17 @@ const DoctorFinder = () => {
           
           for (const baseUrl of alternativeUrls) {
             try {
+<<<<<<< HEAD
               let altUrl = `${baseUrl}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption}`;
               if (userLatitude !== null && userLongitude !== null) {
                 altUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
               }
               const altResponse = await axios.get(altUrl);
+=======
+              const altResponse = await axios.get(
+                `${baseUrl}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption}`
+              );
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
               
               if (altResponse.data.recommended_doctors && 
                   altResponse.data.recommended_doctors.length > 0) {
@@ -608,18 +632,30 @@ const DoctorFinder = () => {
         const searchTermLower = query.toLowerCase();
         
         // Check doctor name
+<<<<<<< HEAD
         if (doctor.name && doctor.name.toLowerCase().includes(searchTermLower)) {
+=======
+        if (doctor.name.toLowerCase().includes(searchTermLower)) {
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
           return true;
         }
         
         // Check specialization
+<<<<<<< HEAD
         if (doctor.specialization && doctor.specialization.toLowerCase().includes(searchTermLower)) {
+=======
+        if (doctor.specialization.toLowerCase().includes(searchTermLower)) {
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
           return true;
         }
         
         // Check conditions treated
         if (doctor.conditions_treated && doctor.conditions_treated.some(condition => 
+<<<<<<< HEAD
           condition && condition.toLowerCase().includes(searchTermLower)
+=======
+          condition.toLowerCase().includes(searchTermLower)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
         )) {
           return true;
         }
@@ -665,12 +701,20 @@ const DoctorFinder = () => {
         const queryLower = query.toLowerCase();
         
         // Check doctor name
+<<<<<<< HEAD
         if (doctor.name && doctor.name.toLowerCase().includes(queryLower)) {
+=======
+        if (doctor.name.toLowerCase().includes(queryLower)) {
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
           return true;
         }
         
         // Check specialization
+<<<<<<< HEAD
         if (doctor.specialization && doctor.specialization.toLowerCase().includes(queryLower)) {
+=======
+        if (doctor.specialization.toLowerCase().includes(queryLower)) {
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
           return true;
         }
         
@@ -683,7 +727,11 @@ const DoctorFinder = () => {
             : [];
             
         return conditionsList.some(condition => 
+<<<<<<< HEAD
           condition && condition.toLowerCase().includes(queryLower)
+=======
+          condition.toLowerCase().includes(queryLower)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
         );
       });
       
@@ -1368,6 +1416,7 @@ const DoctorFinder = () => {
                         </div>
                       </div>
                       
+<<<<<<< HEAD
                       {/* Patients Treated */}
                       <div className="flex items-center gap-2">
                         <div className="bg-teal-50 p-2 rounded-md">
@@ -1379,6 +1428,8 @@ const DoctorFinder = () => {
                         </div>
                       </div>
                       
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
                       {/* Availability */}
                       <div className="flex items-center gap-2">
                         <div className="bg-green-50 p-2 rounded-md">
@@ -1400,6 +1451,7 @@ const DoctorFinder = () => {
                           <p className="font-medium">₹{doctor.fee}</p>
                         </div>
                       </div>
+<<<<<<< HEAD
 
                       {/* Location / Address */}
                       {doctor.location && (
@@ -1413,6 +1465,31 @@ const DoctorFinder = () => {
                           </div>
                         </div>
                       )}
+=======
+                    </div>
+                    
+                    {/* Specializes in treating */}
+                    <div className="mt-5">
+                      <p className="text-sm flex items-center gap-1 font-medium text-green-700">
+                        <FaStethoscope size={12} /> Specializes in treating:
+                      </p>
+                      <div className="mt-1">
+                        {doctor.conditions_treated && Array.isArray(doctor.conditions_treated) && doctor.conditions_treated.map((condition, index) => (
+                          <span 
+                            key={index} 
+                            className={`inline-block mr-2 mb-2 px-3 py-1 rounded-full text-xs
+                              ${searchQuery && condition.toLowerCase().includes(searchQuery.toLowerCase()) 
+                                ? "bg-green-100 text-green-800" 
+                                : "bg-blue-50 text-blue-700"}`}
+                          >
+                            {condition}
+                            {searchQuery && condition.toLowerCase().includes(searchQuery.toLowerCase()) && (
+                              <span className="ml-1 text-green-500">✓</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
                     </div>
                     
                     {/* Contact button */}

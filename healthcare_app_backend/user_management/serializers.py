@@ -14,7 +14,10 @@ class HealthcareUserSerializer(serializers.ModelSerializer):
         model = HealthcareUser
         fields = [
             'id', 'first_name', 'last_name', 'email', 'mobile_number', 'role', 
+<<<<<<< HEAD
             'address', 'latitude', 'longitude',
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
             'password', 'confirm_password', 'specialization', 'experience'
         ]
         extra_kwargs = {

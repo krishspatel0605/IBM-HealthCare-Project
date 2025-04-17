@@ -21,6 +21,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+<<<<<<< HEAD
 
 #environment variables
 .env
@@ -28,3 +29,5 @@ yarn-error.log*
 .env.production
 .env.test
 env
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543

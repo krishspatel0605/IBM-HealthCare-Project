@@ -20,10 +20,13 @@ class HealthcareUser(models.Model):
         ]
     )
 
+<<<<<<< HEAD
     address = models.CharField(max_length=255, blank=True, null=True)
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
 
+=======
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
     password = models.CharField(max_length=255)
     role = models.CharField(max_length=10, choices=[("patient", "Patient"), ("doctor", "Doctor")])
     created_at = models.DateTimeField(auto_now_add=True)

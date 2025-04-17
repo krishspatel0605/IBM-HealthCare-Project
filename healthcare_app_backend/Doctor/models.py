@@ -3,6 +3,7 @@ from django.core.validators import RegexValidator
 from hospital.models import Hospital_Details
 
 class Doctor(models.Model):
+<<<<<<< HEAD
     class Meta:
         db_table = 'doctors'
 
@@ -13,6 +14,12 @@ class Doctor(models.Model):
     doctor_name = models.CharField(max_length=100)
     specialization = models.CharField(max_length=100)
     experience_years = models.IntegerField(default=0)
+=======
+    hospital = models.ForeignKey(Hospital_Details, on_delete=models.CASCADE, related_name='doctor_profiles', null=True, blank=True)
+    name = models.CharField(max_length=100)
+    specialization = models.CharField(max_length=100)
+    experience = models.IntegerField(default=0)
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
     mobile_number = models.CharField(
         max_length=10,
         validators=[
@@ -24,6 +31,7 @@ class Doctor(models.Model):
         ]
     )
     availability = models.CharField(max_length=100, default="10 AM - 5 PM")
+<<<<<<< HEAD
     consultation_fee_inr = models.IntegerField(default=500)
     patients_treated = models.IntegerField(default=0)
     rating = models.FloatField(default=4.0)
@@ -35,3 +43,12 @@ class Doctor(models.Model):
 
     def __str__(self):
         return self.doctor_name
+=======
+    fee = models.IntegerField(default=500)
+    patients_treated = models.IntegerField(default=0)
+    rating = models.FloatField(default=4.0)
+    conditions_treated = models.JSONField(default=list, blank=True, null=True, help_text="List of conditions or diseases the doctor treats")
+    
+    def __str__(self):
+        return self.name 
+>>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
