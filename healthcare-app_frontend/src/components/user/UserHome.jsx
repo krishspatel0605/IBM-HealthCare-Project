@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { TextField } from '@mui/material';
-import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical } from 'react-icons/fa';
+import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid } from 'react-icons/fa';
 import { Calendar, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -89,6 +89,7 @@ export default function DoctorSearch() {
       }
     };
 
+
     fetchDoctors();
     fetchAppointments();
   }, []);
@@ -109,8 +110,14 @@ export default function DoctorSearch() {
   };
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-  const handleLogOut = () => navigate('/login');
-
+  const handleLogOut = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('role');
+    window.dispatchEvent(new Event('storage')); // Notify ProtectedRoute
+    // Redirect to login page
+    navigate('/login');
+  }
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }

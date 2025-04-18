@@ -143,7 +143,7 @@ export default function DoctorPlatform() {
         </section>
 
         {/* Doctor Search */}
-        <section className="py-12 bg-white">
+        {/* <section className="py-12 bg-white">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
               <div className="flex flex-col md:flex-row gap-4">
@@ -161,7 +161,7 @@ export default function DoctorPlatform() {
               </div>
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Featured Doctors */}
         <section className="py-16 bg-gray-50">
@@ -237,7 +237,7 @@ export default function DoctorPlatform() {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <FaUserMd className="text-3xl text-blue-600" />
-                <span className="text-2xl font-bold">MedConnect</span>
+                <span className="text-2xl font-bold">Healthcare</span>
               </div>
               <p className="text-gray-400">
                 Connecting medical professionals and patients for better healthcare outcomes
@@ -261,7 +261,7 @@ export default function DoctorPlatform() {
               <h4 className="text-lg font-bold mb-4">Contact</h4>
               <ul className="space-y-2 text-gray-400">
                 <li>Doctor Support: +1 (555) 123-4567</li>
-                <li>Email: doctors@medconnect.com</li>
+                <li>Email: doctors@healthcare.com</li>
                 <li>Emergency: 24/7 Support</li>
               </ul>
             </div>
