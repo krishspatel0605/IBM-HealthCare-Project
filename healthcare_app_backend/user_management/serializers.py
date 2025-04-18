@@ -58,3 +58,16 @@ class HealthcareUserSerializer(serializers.ModelSerializer):
         return HealthcareUser.objects.create(**validated_data)
 
 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from .models import HealthcareUser
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = HealthcareUser.email  # Ensure email is used
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Add custom data to token if needed
+        token['email'] = user.email
+        token['role'] = user.role
+        return token

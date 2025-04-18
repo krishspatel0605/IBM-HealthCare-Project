@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
-from mongoengine import connect
+
 
 
 
@@ -35,7 +35,6 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'user_management',
-    'hospital',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -50,13 +49,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # ✅ Must be here
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    'corsheaders.middleware.CorsMiddleware',
 
 ]
 
@@ -162,13 +161,50 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ❌ REMOVE THIS LINE IF PRESENT:
 CORS_ALLOW_ALL_ORIGINS = True
 
-
+# ✅ ONLY THIS BLOCK ALLOWED:
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
-# AUTH_USER_MODEL = 'user_management.HealthcareUser'
+CORS_ALLOW_CREDENTIALS = True  # If using cookies/auth headers
+
+
+AUTH_USER_MODEL = 'user_management.User'# Update this to your custom user model
+
 # settings.py
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+FRONTEND_URL = 'http://localhost:3000'
+
+SIMPLE_JWT = {
+    "ALGORITHM": "HS256",
+}
+
+SECRET_KEY = 'x&6yrtrk@!^dp$16zm(!vpaw76genoe%$@@q)vbrz2=h01po$w'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'         # Replace with your SMTP host
+EMAIL_PORT = 587                        # SMTP port, e.g., 587 for TLS
+EMAIL_USE_TLS = True                    # Use TLS if required by your provider
+EMAIL_HOST_USER = 'healthcare.project1224@gmail.com'  # Your email username
+EMAIL_HOST_PASSWORD = 'kpjgiqmdqbttiqxt'         # Your email password
+DEFAULT_FROM_EMAIL = 'noreply@example.com'
+
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
+
+RECAPTCHA_SECRET_KEY = '6LftjRcrAAAAAMzzz5Mj2AMpGmHhYwUoswKQlvv2'
+
+# import logging
+
+# logging.basicConfig(
+#     level=logging.DEBUG,
+#     format='%(asctime)s %(levelname)s %(message)s',
+# )
 
