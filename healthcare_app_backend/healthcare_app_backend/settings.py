@@ -12,18 +12,11 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 
-<<<<<<< HEAD
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-=======
-
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
@@ -35,10 +28,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-<<<<<<< HEAD
-=======
-
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Application definition
 
 INSTALLED_APPS = [
@@ -54,15 +43,13 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
-<<<<<<< HEAD
-=======
     'djongo',
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 ]
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # ✅ Must be here
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -91,7 +78,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "healthcare_app_backend.wsgi.application"
 
-<<<<<<< HEAD
+
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
@@ -106,7 +93,7 @@ DATABASES = {
     }
 }
 
-=======
+
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
@@ -119,16 +106,16 @@ DATABASES = {
 # }
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'djongo',
-        'NAME': 'Healthcare',
-        'CLIENT': {
-            'host': 'localhost',
-            'port': 27017,
-        }
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'djongo',
+#         'NAME': 'Healthcare',
+#         'CLIENT': {
+#             'host': 'localhost',
+#             'port': 27017,
+#         }
+#     }
+# }
 
 # DATABASES = {
 #     'default': {
@@ -146,7 +133,7 @@ DATABASES = {
 #     }
 # }
 
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -165,10 +152,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-<<<<<<< HEAD
-=======
-
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -182,10 +165,8 @@ USE_TZ = True
 
 DEBUG = True
 
-<<<<<<< HEAD
-=======
 DJONGO_USE_NATIVE_JSONFIELD = True
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
@@ -196,19 +177,51 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOW_ALL_ORIGINS = True
+# ❌ REMOVE THIS LINE IF PRESENT:
+# CORS_ALLOW_ALL_ORIGINS = True
 
-<<<<<<< HEAD
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-]
-=======
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
-# AUTH_USER_MODEL = 'user_management.HealthcareUser'
+CORS_ALLOW_CREDENTIALS = True  # If using cookies/auth headers
+
+
+AUTH_USER_MODEL = 'user_management.User'# Update this to your custom user model
+
 # settings.py
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+FRONTEND_URL = 'http://localhost:3000'
 
->>>>>>> dfa72382cbf12758b34e97a989f26c0ca80c5543
+SIMPLE_JWT = {
+    "ALGORITHM": "HS256",
+}
+
+SECRET_KEY = 'x&6yrtrk@!^dp$16zm(!vpaw76genoe%$@@q)vbrz2=h01po$w'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'         # Replace with your SMTP host
+EMAIL_PORT = 587                        # SMTP port, e.g., 587 for TLS
+EMAIL_USE_TLS = True                    # Use TLS if required by your provider
+EMAIL_HOST_USER = 'healthcare.project1224@gmail.com'  # Your email username
+EMAIL_HOST_PASSWORD = 'kpjgiqmdqbttiqxt'         # Your email password
+DEFAULT_FROM_EMAIL = 'noreply@example.com'
+
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
+
+RECAPTCHA_SECRET_KEY = '6LftjRcrAAAAAMzzz5Mj2AMpGmHhYwUoswKQlvv2'
+
+# import logging
+
+# logging.basicConfig(
+#     level=logging.DEBUG,
+#     format='%(asctime)s %(levelname)s %(message)s',
+# )
+
+

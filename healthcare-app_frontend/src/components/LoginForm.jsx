@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import healthcareImage from '../assets/healthcare.jpg';
@@ -11,48 +11,75 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
+  // Redirect user if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      navigate('/userhome');
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setError('');
+    setMessage('');
+    setLoading(true);
+  
+    console.log("Entered Email:", email); // ✅ Check if email is captured
+  
+    const emailPattern = /^[^\s@]+@[^\s@]+$/;
     if (!email || !password) {
       setError('Please fill in all fields');
+      setLoading(false);
+      return;
+    } else if (!emailPattern.test(email)) {
+      setError('Please enter a valid email address');
+      setLoading(false);
       return;
     }
-
+  
     try {
-      const response = await axios.post('http://localhost:8000/api/login/', {
-        email,
-        password
-      });
-
-      if (response.data) {
-        // Store authentication tokens in localStorage
-        if (response.data.access) {
-          localStorage.setItem('auth_token', response.data.access);
-          localStorage.setItem('token', response.data.access); // For compatibility with ProtectedRoute
-        }
-        if (response.data.refresh) {
-          localStorage.setItem('refresh_token', response.data.refresh);
-        }
-        
-        // Also store the user's role and ID if available
-        if (response.data.user_id) {
-          localStorage.setItem('user_id', response.data.user_id);
-        }
-        if (response.data.role) {
-          localStorage.setItem('user_role', response.data.role);
-        }
-        
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/login/`,
+        { email, password },
+        { withCredentials: true }
+      );
+  
+      console.log("API Response:", response.data); // ✅ Log the API response
+  
+      if (response.data.otp_required) {
+        const otpURL = `/verify-login-otp?email=${encodeURIComponent(email)}`;
+        console.log("Navigating to:", otpURL); // ✅ Log redirection URL
+        navigate(otpURL);
+      } else if (response.data.access) {
+        localStorage.setItem('token', response.data.access);
         setMessage('Login successful! Redirecting...');
-        setTimeout(() => navigate('/userhome'), 1500);
+  
+        setTimeout(() => {
+          if (response.data.role === 'patient') {
+            navigate('/userhome');
+          } else if (response.data.role === 'doctor') {
+            navigate('/dashboard');
+          } else {
+            navigate('/');
+          }
+        }, 1500);
+      } else {
+        setError('Unexpected response. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
+      console.error("Error Response:", err.response?.data); // ✅ Log any errors
+      setError(err.response?.data?.detail || 'Invalid credentials. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
+  
+  
 
   return (
     <div className="min-h-0 min-w-0 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">

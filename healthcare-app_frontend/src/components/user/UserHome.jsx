@@ -244,24 +244,29 @@ export default function DoctorSearch() {
       setLoading(false);
     };
 
-    const fetchAppointments = async () => {
-      try {
-        // Use the actual appointments API endpoint
-        const response = await axios.get(`${API_BASE_URL}/user-appointments/`);
-        if (response.data && response.data.appointments) {
-          setUpcomingAppointments(response.data.appointments);
-        } else {
-          // If no appointments or invalid format, set to empty array
-          setUpcomingAppointments([]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch appointments:", err);
-        setUpcomingAppointments([]);
-      }
-    };
+    // const fetchAppointments = async () => {
+    //   try {
+    //     // Use the actual appointments API endpoint
+    //     const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+    //     const response = await axios.get(`${API_BASE_URL}/user-appointments/`, {
+    //       headers: {
+    //         Authorization: `Bearer ${token}`,
+    //       },
+    //     });
+    //     if (response.data && response.data.appointments) {
+    //         setUpcomingAppointments(response.data.appointments);
+    //     } else {
+    //         // If no appointments or invalid format, set to empty array
+    //         setUpcomingAppointments([]);
+    //     }
+    //   } catch (err) {
+    //     console.error("Failed to fetch appointments:", err);
+    //     setUpcomingAppointments([]);
+    //   }
+    // };
 
     fetchDoctors();
-    fetchAppointments();
+    // fetchAppointments();
     
     // Check for query parameters in the URL
     const urlParams = new URLSearchParams(window.location.search);

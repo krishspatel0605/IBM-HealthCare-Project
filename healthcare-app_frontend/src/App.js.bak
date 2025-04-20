@@ -4,22 +4,39 @@ import Home from './components/Home';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import UserHome from './components/user/UserHome';
+<<<<<<< HEAD
 import DashboardPage from './components/AdminDashboard';
 import Login from './components/AdminDashBoard/admin-login';
 import DoctorFinder from './components/DoctorFinder';
 import ProtectedRoute from './components/ProtectedRoute';
 import HospitalDetails from './components/HospitalDetails';
 import About from './components/About';
+
+=======
 import VerifyOTP from './components/verifyOtp';
+import ProtectedRoute from "./components/ProtectedRoute"; // ✅ Import ProtectedRoute
 import VerifyLoginOTP from './components/VerifyLoginOTP';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import DoctorDashboardPage from './components/AdminDashBoard/DoctorDashboardPage';
+>>>>>>> krish
 
 function App() {
   return (
     <Router>
       <Routes>
+<<<<<<< HEAD
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="/register" element={<RegisterForm />} />
+        <Route path="/hospitaldetail" element={<HospitalDetails />} />
+        <Route path="/find-doctors" element={<DoctorFinder />} />
+        <Route path="/about" element={<About />} />
+        {/* Protected Routes */}
+        <Route path="/userhome" element={<ProtectedRoute Component={UserHome} />} />
+        <Route path="/dashboard" element={<ProtectedRoute Component={DashboardPage} />} />
+        <Route path="/admin-login" element={<Login />} />
+=======
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginForm />} />
@@ -28,15 +45,13 @@ function App() {
         <Route path="/activate" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/hospitaldetail" element={<HospitalDetails />} />
-        <Route path="/find-doctors" element={<DoctorFinder />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/admin-login" element={<Login />} />
-        {/* Protected Routes - Only accessible when authenticated */}
+        {/* ✅ Protected Routes - Only accessible when authenticated */}
         <Route element={<ProtectedRoute />}>
           <Route path="/userhome" element={<UserHome />} />
           <Route path="/dashboard" element={<DoctorDashboardPage />} />
+
         </Route>
+>>>>>>> krish
       </Routes>
     </Router>
   );

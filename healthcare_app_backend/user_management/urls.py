@@ -1,22 +1,20 @@
 from django.urls import path
 from .views import (
-    RegisterHealthcareUserView,
-    loginHealthcareUserView,
-    HealthcareUserListView,
+    RegisterUserView,
     LoginView,
     UserProfileView,
     UserSearchesView,
     SavedDoctorsView,
     RecommendedConditionsView,
-    TestDoctorCreationView
+    TestDoctorCreationView,
+    UserAppointmentsView
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
-    path('api/register/', RegisterHealthcareUserView.as_view(), name='register_healthcare_user'),
-    path('api/login/', loginHealthcareUserView.as_view(), name='login_healthcare_user'),
-    path('api/healthcare-users/', HealthcareUserListView.as_view(), name='healthcare-user-list'),
-    path('api/admin-login/', LoginView.as_view(), name='login'),
+    path('api/register/', RegisterUserView.as_view(), name='register_user'),
+    path('api/login/', LoginView.as_view(), name='login'),
+    path('api/healthcare-users/', UserProfileView.as_view(), name='user_profile'),
     
     # JWT token refresh endpoint
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -31,7 +29,5 @@ urlpatterns = [
     
     # Test endpoint
     path('api/test-doctor-creation/', TestDoctorCreationView.as_view(), name='test_doctor_creation'),
+
 ]
-
-
-

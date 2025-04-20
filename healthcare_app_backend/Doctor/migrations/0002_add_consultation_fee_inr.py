@@ -1,5 +1,4 @@
 from django.db import migrations, models
-import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
@@ -10,7 +9,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='doctor',
-            name='hospital',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='doctor_profiles', to='hospital.hospital_details'),
+            name='consultation_fee_inr',
+            field=models.IntegerField(default=500),
         ),
     ]
