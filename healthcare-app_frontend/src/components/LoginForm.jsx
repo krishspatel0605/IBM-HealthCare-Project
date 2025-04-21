@@ -60,7 +60,7 @@ const LoginForm = () => {
         setMessage('Login successful! Redirecting...');
   
         setTimeout(() => {
-          if (response.data.role === 'patient') {
+          if (response.data.role === 'user') {
             navigate('/userhome');
           } else if (response.data.role === 'doctor') {
             navigate('/dashboard');

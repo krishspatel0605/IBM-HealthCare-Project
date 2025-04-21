@@ -18,8 +18,14 @@ const RegisterForm = () => {
     confirmPassword: '',
     specialization: '',
     experience: 0,
+    availability: '',
+    patientsTreated: 0,
+    hospital_name: '',
     address: '',
-    date_of_birth: ''
+    date_of_birth: '',
+    latitude: '',
+    longitude: '',
+    doctorName: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -27,10 +33,9 @@ const RegisterForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
-
   const debounceTimeout = useRef(null);
 
-  const calculatePasswordStrength = (password,) => {
+  const calculatePasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 6) strength += 1;
     if (password.match(/[A-Z]/)) strength += 1;
@@ -38,29 +43,14 @@ const RegisterForm = () => {
     if (password.match(/[^A-Za-z0-9]/)) strength += 1;
     return Math.min(strength, 4); // Max strength 4
   };
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
     setErrors({ ...errors, [name]: '' });
 
-    const strength = calculatePasswordStrength(value);
-    setPasswordStrength(strength);
     if (name === 'password') {
       setPasswordStrength(calculatePasswordStrength(value));
-    }
-    if (name === 'email' && !value.includes('@')) {
-      setErrors((prevErrors) => ({
-        ...prevErrors,
-        email: 'Please enter a valid email address.',
-      }));
-
-    }
-    if (name === 'password' && value.length < 6) {
-      setErrors((prevErrors) => ({
-        ...prevErrors,
-        password: 'Password must be at least 6 characters.',
-      }));
     }
     if (name === 'confirmPassword') {
       setErrors((prevErrors) => ({
@@ -69,32 +59,38 @@ const RegisterForm = () => {
       }));
     }
 
+    if (name === 'address') {
+      // Automatically fetch latitude and longitude when address changes
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+      debounceTimeout.current = setTimeout(() => {
+        fetchCoordinates(value);
+      }, 1000);
+    }
+
     setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
 
     setErrors((prevErrors) => ({
       ...prevErrors,
-      [name]: ''
+      [name]: '',
     }));
+  };
 
-    if (name === 'firstName' || name === 'lastName') {
-      if (!/^[a-zA-Z]+$/.test(value)) {
-        setErrors((prev) => ({
+  const fetchCoordinates = async (address) => {
+    try {
+      const response = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=YOUR_GOOGLE_API_KEY`);
+      const { lat, lng } = response.data.results[0]?.geometry.location || {};
+      if (lat && lng) {
+        setFormData((prev) => ({
           ...prev,
-          [name]: 'Only letters are allowed.'
+          latitude: lat,
+          longitude: lng,
         }));
       }
-    }
-
-    if (name === 'address') {
-      if (value.length < 10) {
-        setErrors((prev) => ({
-          ...prev,
-          address: 'Address must be at least 10 characters.'
-        }));
-      }
+    } catch (error) {
+      console.error('Error fetching coordinates:', error);
     }
   };
 
@@ -108,7 +104,8 @@ const RegisterForm = () => {
       formData.address &&
       formData.date_of_birth &&
       formData.password.length >= 6 &&
-      formData.password === formData.confirmPassword
+      formData.password === formData.confirmPassword &&
+      (formData.role !== 'doctor' || (formData.hospital_name && formData.specialization && formData.experience > 0))
     );
   };
 
@@ -116,21 +113,23 @@ const RegisterForm = () => {
     e.preventDefault();
 
     let validationErrors = {};
-    if (!formData.firstName) validationErrors.first_name = "First name is required.";
-    if (!formData.lastName) validationErrors.last_name = "Last name is required.";
-    if (!formData.email.includes("@")) validationErrors.email = "Enter a valid email.";
-    if (!formData.mobileNumber) validationErrors.mobile_number = "Mobile number is required.";
-    if (formData.mobileNumber && (!/^\d+$/.test(formData.mobileNumber) || formData.mobileNumber.length !== 10)) 
-      validationErrors.mobile_number = "Mobile number must be exactly 10 digits.";
-    if (formData.password.length < 6) validationErrors.password = "Password must be at least 6 characters.";
-    if (formData.password !== formData.confirmPassword) validationErrors.confirm_password = "Passwords do not match.";
-    // Validate doctor-specific fields
-    if (formData.role === 'doctor' && !formData.specialization) {
-      validationErrors.specialization = "Specialization is required for doctors.";
+    if (!formData.firstName) validationErrors.first_name = 'First name is required.';
+    if (!formData.lastName) validationErrors.last_name = 'Last name is required.';
+    if (!formData.email.includes('@')) validationErrors.email = 'Enter a valid email.';
+    if (!formData.mobileNumber) validationErrors.mobile_number = 'Mobile number is required.';
+    if (formData.mobileNumber && (!/^\d+$/.test(formData.mobileNumber) || formData.mobileNumber.length !== 10))
+      validationErrors.mobile_number = 'Mobile number must be exactly 10 digits.';
+    if (formData.password.length < 6) validationErrors.password = 'Password must be at least 6 characters.';
+    if (formData.password !== formData.confirmPassword) validationErrors.confirm_password = 'Passwords do not match.';
+    if (formData.role === 'doctor') {
+      if (!formData.specialization) validationErrors.specialization = 'Specialization is required for doctors.';
+      if (!formData.hospital_name) validationErrors.hospital_name = 'Hospital name is required.';
+      if (formData.experience <= 0) validationErrors.experience = 'Experience must be greater than 0 years.';
+      if (!formData.availability) validationErrors.availability = 'Availability is required.';
     }
 
-    if (!formData.address) validationErrors.address = "Address is required.";
-    if (!formData.date_of_birth) validationErrors.date_of_birth = "Date of birth is required.";
+    if (!formData.address) validationErrors.address = 'Address is required.';
+    if (!formData.date_of_birth) validationErrors.date_of_birth = 'Date of birth is required.';
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -146,42 +145,28 @@ const RegisterForm = () => {
       confirm_password: formData.confirmPassword,
       address: formData.address,
       date_of_birth: formData.date_of_birth,
+      latitude: formData.latitude,
+      longitude: formData.longitude,
+      hospital_name: formData.hospital_name,
+      doctor_name: formData.doctorName,
+      specialization: formData.specialization,
+      experience: formData.experience,
+      availability: formData.availability,
+      patients_treated: formData.patientsTreated,
     };
-
-    if (formData.role === 'doctor') {
-      userData.specialization = formData.specialization || 'General';
-      userData.experience = formData.experience || 0;
-    }
 
     try {
       const response = await axios.post('http://localhost:8000/api/register/', userData);
 
       if (response && response.data) {
-        setMessage(response.data.message || "Registration successful! Redirecting to login...");
+        setMessage(response.data.message || "Registration successful! An activation link has been sent to your email.");
         setErrors({});
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
       } else {
         setMessage('');
         setErrors({ general: "Unexpected response from server." });
       }
     } catch (err) {
-      console.error('Registration Error:', err);
-      if (err.response) {
-        const fieldErrors = {};
-        const errorData = err.response.data;
-        if (typeof errorData === 'object') {
-          Object.keys(errorData).forEach(key => {
-            if (Array.isArray(errorData[key])) {
-              fieldErrors[key] = errorData[key][0];
-            } else if (typeof errorData[key] === 'string') {
-              fieldErrors[key] = errorData[key];
-            }
-          });
-        }
-        setErrors(Object.keys(fieldErrors).length > 0 ? fieldErrors : { general: 'Registration failed. Please try again.' });
-      } else if (err.response && err.response.data) {
+      if (err.response && err.response.data) {
         const backendError = err.response.data;
         setErrors({
           email: backendError.email,
@@ -204,16 +189,8 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
-      <div className="flex flex-col md:flex-row w-full max-w-6xl bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Image Section */}
-        <div className="md:w-1/2 relative">
-          <img
-            src={healthcareImage}
-            alt="Healthcare"
-            className="w-full h-full object-cover"
-          />
-        </div>
+    <div className="min-h-0 min-w-0 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
+      <div className="flex flex-col md:flex-row w-11/12 max-w-6xl bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Left: Image Section */}
         <div className="md:w-1/2 relative">
           <img src={healthcareImage} alt="Healthcare" className="w-full h-full object-cover" />
@@ -226,7 +203,6 @@ const RegisterForm = () => {
         </div>
 
         {/* Form Section */}
-        {/* Right: Form Section */}
         <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
           <div className="text-center mb-8">
             <div className="inline-block bg-blue-100 p-4 rounded-full mb-4">
@@ -240,257 +216,239 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">First Name</label>
-                <div className="relative">
-                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    name="firstName"
-                    placeholder="John"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
-                </div>
-                {errors.first_name && (
-                  <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                    <FaExclamationTriangle className="flex-shrink-0" /> {errors.first_name}
-                  </p>
-                )}
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder="First Name"
+                />
+                {errors.first_name && <div className="text-red-500 text-sm">{errors.first_name}</div>}
               </div>
 
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">Last Name</label>
-                <div className="relative">
-                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    name="lastName"
-                    placeholder="Doe"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
-                </div>
-                {errors.last_name && (
-                  <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                    <FaExclamationTriangle className="flex-shrink-0" /> {errors.last_name}
-                  </p>
-                )}
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder="Last Name"
+                />
+                {errors.last_name && <div className="text-red-500 text-sm">{errors.last_name}</div>}
               </div>
             </div>
 
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">Email</label>
-              <div className="relative">
-                <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-gray-700 mb-2 font-medium">Email</label>
                 <input
                   type="email"
                   name="email"
-                  placeholder="john@example.com"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder="Email"
                 />
+                                {errors.email && <div className="text-red-500 text-sm">{errors.email}</div>}
               </div>
-              {errors.email && (
-                <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                  <FaExclamationTriangle className="flex-shrink-0" /> {errors.email}
-                </p>
-              )}
+
+              <div>
+                <label className="block text-gray-700 mb-2 font-medium">Mobile Number</label>
+                <input
+                  type="text"
+                  name="mobileNumber"
+                  value={formData.mobileNumber}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder="10-digit Mobile Number"
+                />
+                {errors.mobile_number && <div className="text-red-500 text-sm">{errors.mobile_number}</div>}
+              </div>
             </div>
 
             <div>
-              <label className="block text-gray-700 mb-2 font-medium">Mobile Number</label>
-              <div className="relative">
-                <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="tel"
-                  name="mobileNumber"
-                  placeholder="+1 234 567 890"
-                  value={formData.mobileNumber}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                />
-              </div>
-              {errors.mobile_number && (
-                <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                  <FaExclamationTriangle className="flex-shrink-0" /> {errors.mobile_number}
-                </p>
-              )}
+              <label className="block text-gray-700 mb-2 font-medium">Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full p-3 border border-gray-300 rounded-lg"
+              >
+                <option value="">Select Role</option>
+                <option value="user">User</option>
+                <option value="doctor">Doctor</option>
+              </select>
+              {errors.role && <div className="text-red-500 text-sm">{errors.role}</div>}
             </div>
+
+            {formData.role === 'doctor' && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Doctor Name</label>
+                    <input
+                      type="text"
+                      name="doctorName"
+                      value={formData.doctorName}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="Dr. John Doe"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Hospital Name</label>
+                    <input
+                      type="text"
+                      name="hospital_name"
+                      value={formData.hospital_name}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="City Hospital"
+                    />
+                    {errors.hospital_name && <div className="text-red-500 text-sm">{errors.hospital_name}</div>}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Specialization</label>
+                    <input
+                      type="text"
+                      name="specialization"
+                      value={formData.specialization}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="Cardiologist"
+                    />
+                    {errors.specialization && <div className="text-red-500 text-sm">{errors.specialization}</div>}
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Years of Experience</label>
+                    <input
+                      type="number"
+                      name="experience"
+                      value={formData.experience}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="5"
+                      min="1"
+                    />
+                    {errors.experience && <div className="text-red-500 text-sm">{errors.experience}</div>}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 mb-2 font-medium">Availability</label>
+                  <input
+                    type="text"
+                    name="availability"
+                    value={formData.availability}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    placeholder="Mon-Fri, 9AM-1PM"
+                  />
+                  {errors.availability && <div className="text-red-500 text-sm">{errors.availability}</div>}
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-gray-700 mb-2 font-medium">Address</label>
               <input
                 type="text"
                 name="address"
-                placeholder="123 Main St, City, Country"
                 value={formData.address}
                 onChange={handleChange}
-                className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                className="w-full p-3 border border-gray-300 rounded-lg"
+                placeholder="Full Address"
               />
-              {errors.address && (
-                <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                  <FaExclamationTriangle className="flex-shrink-0" /> {errors.address}
-                </p>
-              )}
+              {errors.address && <div className="text-red-500 text-sm">{errors.address}</div>}
             </div>
 
             <div>
               <label className="block text-gray-700 mb-2 font-medium">Date of Birth</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  name="date_of_birth"
-                  value={formData.date_of_birth}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              {errors.date_of_birth && <p className="text-red-500 text-sm mt-1">{errors.date_of_birth}</p>}
+              <input
+                type="date"
+                name="date_of_birth"
+                value={formData.date_of_birth}
+                onChange={handleChange}
+                className="w-full p-3 border border-gray-300 rounded-lg"
+              />
+              {errors.date_of_birth && <div className="text-red-500 text-sm">{errors.date_of_birth}</div>}
             </div>
 
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">Account Type</label>
-              <div className="flex gap-4">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: 'user' })}
-                  className={`flex-1 py-2 rounded-lg border-2 ${
-                    formData.role === 'user'
-                      ? 'border-blue-600 bg-blue-50 text-blue-600'
-                      : 'border-gray-300 text-gray-600 hover:border-blue-400'
-                  } transition-all`}
-                >
-                  Patient
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: 'doctor' })}
-                  className={`flex-1 py-2 rounded-lg border-2 ${
-                    formData.role === 'doctor'
-                      ? 'border-blue-600 bg-blue-50 text-blue-600'
-                      : 'border-gray-300 text-gray-600 hover:border-blue-400'
-                  } transition-all`}
-                >
-                  Doctor
-                </button>
-              </div>
-            </div>
-
-            {formData.role === 'doctor' && (
-              <>
-                <div>
-                  <label className="block text-gray-700 mb-2 font-medium">Specialization</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-gray-700 mb-2 font-medium">Password</label>
+                <div className="relative">
                   <input
-                    type="text"
-                    name="specialization"
-                    placeholder="e.g., Cardiology, Neurology, etc."
-                    value={formData.specialization}
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
                     onChange={handleChange}
-                    className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full p-3 border border-gray-300 rounded-lg pr-10"
+                    placeholder="Password"
                   />
-                  {errors.specialization && (
-                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                      <FaExclamationTriangle className="flex-shrink-0" /> {errors.specialization}
-                    </p>
-                  )}
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                  >
+                    {showPassword ? <RiEyeOffFill /> : <RiEyeFill />}
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-gray-700 mb-2 font-medium">Years of Experience</label>
+                {errors.password && <div className="text-red-500 text-sm">{errors.password}</div>}
+              </div>
+
+              <div>
+                <label className="block text-gray-700 mb-2 font-medium">Confirm Password</label>
+                <div className="relative">
                   <input
-                    type="number"
-                    name="experience"
-                    min="0"
-                    value={formData.experience}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full p-3 border border-gray-300 rounded-lg pr-10"
+                    placeholder="Confirm Password"
                   />
+                  <button
+                    type="button"
+                    onClick={toggleConfirmPasswordVisibility}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                  >
+                    {showConfirmPassword ? <RiEyeOffFill /> : <RiEyeFill />}
+                  </button>
                 </div>
-              </>
-            )}
-
-            {/* Password */}
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">Password</label>
-              <div className="relative">
-                <MdPassword className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-md p-2 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Password"
-                />
-                <div
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer"
-                  onClick={togglePasswordVisibility}
-                >
-                  {showPassword ? <RiEyeOffFill /> : <RiEyeFill />}
-                </div>
+                {errors.confirm_password && <div className="text-red-500 text-sm">{errors.confirm_password}</div>}
               </div>
-              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
             </div>
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">Confirm Password</label>
-              <div className="relative">
-                <MdPassword className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  name="confirmPassword"
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={toggleConfirmPasswordVisibility}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600"
-                >
-                  {showConfirmPassword ? <RiEyeOffFill /> : <RiEyeFill />}
-                </button>
-              </div>
-              {errors.confirm_password && (
-                <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                  <FaExclamationTriangle className="flex-shrink-0" /> {errors.confirm_password}
-                </p>
-              )}
-            </div>
-
+            {/* Submit Button */}
             <button
               type="submit"
-              className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white`}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-300"
+              disabled={!isFormValid()}
             >
-              <RiShieldUserFill className="text-lg" />
-              Create Account
+              Register
             </button>
 
             {message && (
-              <div className="flex items-center gap-2 bg-green-50 p-3 rounded-lg text-green-600">
-                <FaCheckCircle className="flex-shrink-0" />
-                <span>{message}</span>
+              <div className="mt-4 text-green-600 text-center flex items-center justify-center gap-2">
+                <FaCheckCircle /> {message}
               </div>
             )}
-
             {errors.general && (
-              <div className="flex items-center gap-2 bg-red-50 p-3 rounded-lg text-red-600">
-                <FaExclamationTriangle className="flex-shrink-0" />
-                <span>{errors.general}</span>
+              <div className="mt-4 text-red-600 text-center flex items-center justify-center gap-2">
+                <FaExclamationTriangle /> {errors.general}
               </div>
             )}
-
-            <p className="text-center text-gray-600 mt-4">
-              Already have an account?{' '}
-              <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                Sign In
-              </a>
-              </p>
-              </form>
-          </div>
+          </form>
+        </div>
       </div>
     </div>
   );

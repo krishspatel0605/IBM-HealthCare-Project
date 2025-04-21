@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { TextField } from '@mui/material';
@@ -11,20 +11,18 @@ import 'swiper/css/pagination';
 
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
-  // Try different possible backend URLs in order of preference
   const possibleUrls = [
-    'http://localhost:8000/api',  // Default development URL
-    'http://127.0.0.1:8000/api',  // Alternative localhost URL
-    window.location.origin + '/api' // Same-origin API for production
+    'http://localhost:8000/api',
+    'http://127.0.0.1:8000/api',
+    window.location.origin + '/api',
   ];
   
-  // Get stored URL from localStorage if available
   const storedUrl = localStorage.getItem('api_base_url');
   if (storedUrl) {
     return storedUrl;
   }
-  
-  return possibleUrls[0]; // Default to first option
+
+  return possibleUrls[0];
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -35,22 +33,19 @@ const StarRating = ({ rating }) => {
   const fullStars = Math.floor(rating);
   const hasHalfStar = rating - fullStars >= 0.5;
   const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-  
-  // Add full stars
+
   for (let i = 0; i < fullStars; i++) {
     stars.push(<FaStar key={`full-${i}`} className="text-yellow-400" />);
   }
-  
-  // Add half star if needed
+
   if (hasHalfStar) {
     stars.push(<FaStarHalfAlt key="half" className="text-yellow-400" />);
   }
-  
-  // Add empty stars
+
   for (let i = 0; i < emptyStars; i++) {
     stars.push(<FaRegStar key={`empty-${i}`} className="text-yellow-400" />);
   }
-  
+
   return (
     <div className="flex items-center">
       <div className="flex mr-1">{stars}</div>
@@ -59,80 +54,57 @@ const StarRating = ({ rating }) => {
   );
 };
 
-export default function DoctorSearch() {
+export default function UserHome() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [sortOption, setSortOption] = useState("default");
-  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [sortOption, setSortOption] = useState('default');
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  
 
-  // Check if user is authenticated when component mounts
   useEffect(() => {
     const authToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
     if (!authToken) {
-      // If no token is found, redirect to login
       navigate('/login');
     }
   }, [navigate]);
 
-  // Sort doctors based on the selected option
   const sortDoctors = (doctorsList, option) => {
     const sortedList = [...doctorsList];
-    
+
     switch(option) {
       case "exp-high-low":
         return sortedList.sort((a, b) => b.experience - a.experience);
       case "exp-low-high":
         return sortedList.sort((a, b) => a.experience - b.experience);
       case "rating-high-low":
-        return sortedList.sort((a, b) => {
-          // Some doctors might not have ratings
-          const ratingA = a.rating || 0;
-          const ratingB = b.rating || 0;
-          return ratingB - ratingA;
-        });
+        return sortedList.sort((a, b) => (b.rating || 0) - (a.rating || 0));
       case "rating-low-high":
-        return sortedList.sort((a, b) => {
-          const ratingA = a.rating || 0;
-          const ratingB = b.rating || 0;
-          return ratingA - ratingB;
-        });
+        return sortedList.sort((a, b) => (a.rating || 0) - (b.rating || 0));
       case "fee-low-high":
-        return sortedList.sort((a, b) => {
-          const feeA = a.fee || 0;
-          const feeB = b.fee || 0;
-          return feeA - feeB;
-        });
+        return sortedList.sort((a, b) => (a.fee || 0) - (b.fee || 0));
       case "fee-high-low":
-        return sortedList.sort((a, b) => {
-          const feeA = a.fee || 0;
-          const feeB = b.fee || 0;
-          return feeB - feeA;
-        });
+        return sortedList.sort((a, b) => (b.fee || 0) - (a.fee || 0));
       default:
         return sortedList;
     }
   };
 
-  // Improve the performSearch function to better handle diseases
   const performSearch = useCallback(async (query) => {
-    if (!query || query.trim() === '') return;
+    if (!query.trim()) return;
     
     setSearchLoading(true);
     setError(null);
     setSearchPerformed(true);
-    
+
     try {
-      console.log(`Searching for doctors treating: "${query}"`);
-      
-      // Use the recommend-doctors endpoint which is better for disease search
       const response = await axios.get(
         `${API_BASE_URL}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption === 'default' ? 'similarity' : sortOption}&limit=100`
       );
@@ -140,76 +112,46 @@ export default function DoctorSearch() {
       if (response.data && response.data.recommended_doctors) {
         const recommendedDoctors = response.data.recommended_doctors;
         
-        // Process doctors to mark those who treat the searched condition
         const processedDoctors = recommendedDoctors.map(doctor => {
-          // Create a copy of the doctor object
           const processedDoctor = { ...doctor };
           
-          // Check if this doctor treats the searched condition
           if (doctor.conditions_treated) {
-            const conditions = Array.isArray(doctor.conditions_treated) 
-              ? doctor.conditions_treated 
-              : typeof doctor.conditions_treated === 'string'
-                ? doctor.conditions_treated.split(',').map(c => c.trim())
-                : [];
-                
-            const matchFound = conditions.some(condition => 
-              condition.toLowerCase().includes(query.toLowerCase())
-            );
-            
+            const conditions = Array.isArray(doctor.conditions_treated) ? doctor.conditions_treated : doctor.conditions_treated.split(',').map(c => c.trim());
+            const matchFound = conditions.some(condition => condition.toLowerCase().includes(query.toLowerCase()));
             processedDoctor.treats_searched_condition = matchFound;
           }
           
           return processedDoctor;
         });
-        
-        // Apply sorting to the doctors
+
         const sortedDoctors = sortDoctors(processedDoctors, sortOption);
         setFilteredDoctors(sortedDoctors);
-        console.log(`Found ${sortedDoctors.length} doctors for "${query}"`);
       } else {
-        console.log(`No doctors found for "${query}"`);
         setError(`No doctors found for "${query}"`);
         setFilteredDoctors([]);
       }
     } catch (error) {
       console.error("Error searching doctors:", error);
       
-      // Try to fetch all doctors and filter client-side as a fallback
       try {
         const response = await axios.get(`${API_BASE_URL}/list-all-doctors/`);
         
         if (response.data && response.data.doctors) {
-          // Filter doctors client-side
           const filtered = response.data.doctors.filter(doctor => {
             const queryLower = query.toLowerCase();
-            
-            // Check if doctor treats the condition
             if (doctor.conditions_treated) {
-              const conditions = Array.isArray(doctor.conditions_treated) 
-                ? doctor.conditions_treated 
-                : typeof doctor.conditions_treated === 'string' 
-                  ? doctor.conditions_treated.split(',').map(c => c.trim()) 
-                  : [];
-              
-              return conditions.some(condition => 
-                condition.toLowerCase().includes(queryLower)
-              );
+              const conditions = Array.isArray(doctor.conditions_treated) ? doctor.conditions_treated : doctor.conditions_treated.split(',').map(c => c.trim());
+              return conditions.some(condition => condition.toLowerCase().includes(queryLower));
             }
-            
-            // Also check name and specialization as fallback
-            return doctor.name.toLowerCase().includes(queryLower) ||
-                   doctor.specialization.toLowerCase().includes(queryLower);
+            return doctor.name.toLowerCase().includes(queryLower) || doctor.specialization.toLowerCase().includes(queryLower);
           });
           
-          // Mark doctors that treat the condition
           const processedDoctors = filtered.map(doctor => ({
             ...doctor,
-            treats_searched_condition: true // All filtered doctors treat the condition in fallback mode
+            treats_searched_condition: true
           }));
-          
+
           setFilteredDoctors(sortDoctors(processedDoctors, sortOption));
-          console.log(`Found ${filtered.length} doctors (fallback) for "${query}"`);
         } else {
           setError(`No doctors found for "${query}"`);
           setFilteredDoctors([]);
@@ -222,15 +164,13 @@ export default function DoctorSearch() {
     } finally {
       setSearchLoading(false);
     }
-  }, [sortOption]); // Include sortOption in the dependencies
+  }, [sortOption]);
 
-  // Fetch doctors data from the backend
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/list-all-doctors/?limit=10`);
         if (response.data && response.data.doctors) {
-          // Apply default sorting to the doctors when they are first loaded
           const doctorsData = response.data.doctors;
           setDoctors(doctorsData);
           setFilteredDoctors(sortDoctors(doctorsData, sortOption));
@@ -243,7 +183,6 @@ export default function DoctorSearch() {
       }
       setLoading(false);
     };
-
     // const fetchAppointments = async () => {
     //   try {
     //     // Use the actual appointments API endpoint

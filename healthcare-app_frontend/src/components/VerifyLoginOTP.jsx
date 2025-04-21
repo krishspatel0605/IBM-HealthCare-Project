@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
-import { FaKey, FaCheckCircle, FaExclamationTriangle } from "react-icons/fa";
+import { FaKey, FaExclamationTriangle } from "react-icons/fa";
 import healthcareImage from "../assets/healthcare.jpg"; // Ensure correct path
 
 const maskEmail = (email) => {
@@ -57,29 +57,39 @@ const VerifyLoginOTP = () => {
 
   const handleVerify = async () => {
     const otpCode = otp.join("");
+    
     if (!email || otpCode.length !== 6) {
       setError("Please enter a valid 6-digit OTP.");
       return;
     }
-
+  
     setLoading(true);
+    
     try {
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/api/verify-login-otp/`,
-        { email, email_otp: otpCode.trim() }, // ✅ match the backend field
+        { email, email_otp: otpCode.trim() },
         { withCredentials: true }
       );
-
+  
       const { access, refresh, role } = response.data;
+  
       if (access && refresh && role) {
         localStorage.setItem("accessToken", access);
         localStorage.setItem("refreshToken", refresh);
         localStorage.setItem("role", role);
-        window.dispatchEvent(new Event("storage"));
-
-        setTimeout(() => {
-          navigate(role === "doctor" ? "/dashboard" : "/userhome");
-        }, 1000);
+        window.dispatchEvent(new Event("storage"));  
+        // Directly navigate without delay
+        if (role === "doctor" ) {
+          navigate("/dashboard");
+        } else if (role === "user") {
+          navigate("/userhome");
+        }
+        else {
+          navigate("/"); // Default case if role is not recognized
+        }
+  
+        setError(""); // Reset error if everything is successful
       } else {
         setError("Invalid response from server. Please try again.");
       }
@@ -89,7 +99,8 @@ const VerifyLoginOTP = () => {
       setLoading(false);
     }
   };
-
+  
+  
   const handleResendOTP = async () => {
     setTimer(30);
     setIsResendDisabled(true);

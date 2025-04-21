@@ -34,7 +34,7 @@ class CustomUserManager(BaseUserManager):
 # Custom User Model with Input Validation
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
-        ('user', 'user'),   # 'user' is a patient
+        ('user', 'Patient'),
         ('doctor', 'Doctor'),
     ]
 
@@ -44,7 +44,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     )
     name = models.CharField(
         max_length=100,
-        validators=[sanitize_input, RegexValidator(r'^[a-zA-Z\s]+$', "Name must contain only letters and spaces.")]
+        validators=[
+            sanitize_input,
+            RegexValidator(r'^[a-zA-Z\s]+$', "Name must contain only letters and spaces.")
+        ]
     )
     mobile_number = models.CharField(
         max_length=10,
@@ -53,47 +56,45 @@ class User(AbstractBaseUser, PermissionsMixin):
         blank=True,
         validators=[RegexValidator(r'^\d{10}$', "Enter a valid 10-digit mobile number.")]
     )
-    date_of_birth= models.DateField(
-        null=True,
-        blank=True,
-        )
-    
-    address = models.TextField(
-        null=True,
-        blank=True,
-        validators=[sanitize_input]
-    )
-    is_active = models.BooleanField(default=False)  # Initially inactive until OTP verification
-    is_staff = models.BooleanField(default=False)   # Only superusers are staff
-    role = models.CharField(
-        max_length=10,
-        choices=ROLE_CHOICES,
-        default='user'
-    )
+    date_of_birth = models.DateField(null=True, blank=True)
+    address = models.TextField(null=True, blank=True, validators=[sanitize_input])
+    latitude = models.CharField(max_length=50, null=True, blank=True)
+    longitude = models.CharField(max_length=50, null=True, blank=True)
+
+    # Doctor-specific fields
+    specialization = models.CharField(max_length=100, null=True, blank=True)
+    experience = models.PositiveIntegerField(default=0, null=True, blank=True)
+    availability = models.TextField(null=True, blank=True)
+    patients_treated = models.PositiveIntegerField(default=0, null=True, blank=True)
+    hospital_name = models.CharField(max_length=255, null=True, blank=True)
+
+    is_active = models.BooleanField(default=False)
+    is_staff = models.BooleanField(default=False)
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
+
     email_otp = models.CharField(max_length=6, null=True, blank=True)
-    otp_expiry = models.DateTimeField(null=True, blank=True)  # <-- add this in your model if not already
+    otp_expiry = models.DateTimeField(null=True, blank=True)
 
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'mobile_number','date_of_birth', 'address','password','role']  # Add other required fields here
+    REQUIRED_FIELDS = ['name', 'mobile_number', 'date_of_birth', 'address', 'password', 'role']
 
-    role = models.CharField(max_length=10, choices=[("user", "Patient"), ("doctor", "Doctor")], default="user")
-    
     # Fix conflicts by changing related_name
     groups = models.ManyToManyField(
         "auth.Group",
-        related_name="custom_user_groups",  # ✅ Prevents clash with auth.User.groups
+        related_name="custom_user_groups",
         blank=True
     )
     user_permissions = models.ManyToManyField(
         "auth.Permission",
-        related_name="custom_user_permissions",  # ✅ Prevents clash with auth.User.user_permissions
+        related_name="custom_user_permissions",
         blank=True
     )
 
     def __str__(self):
         return self.email
+
 
 
 class ActivationToken(models.Model):

@@ -7,13 +7,31 @@ from .views import (
     SavedDoctorsView,
     RecommendedConditionsView,
     TestDoctorCreationView,
-    UserAppointmentsView
+    UserAppointmentsView,
+    ResendActivationOTPView,
+    ResendLoginOTPView,
+    ForgotPasswordView,
+    ResetPasswordView,
+    ActivationView,
+    LoginOTPVerifyView,
+    RoleBasedAccess,
+    LogoutView,
+    
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
-    path('api/register/', RegisterUserView.as_view(), name='register_user'),
-    path('api/login/', LoginView.as_view(), name='login'),
+     path("register/", RegisterUserView.as_view(), name="register"),
+    path("activate/", ActivationView.as_view(), name="activate"),
+    path("login/", LoginView.as_view(), name="login"),
+    path("verify-login-otp/", LoginOTPVerifyView.as_view(), name="verify_login_otp"),  # ✅ Fixed
+    path("role-access/", RoleBasedAccess.as_view(), name="role_access"),
+    path("logout/", LogoutView.as_view(), name="logout"),
+    path('resend-activation-otp/', ResendActivationOTPView.as_view(), name='resend-activation-otp'),
+    path("resend-login-otp/", ResendLoginOTPView.as_view(), name="resend_login_otp"),
+    path("forgot-password/", ForgotPasswordView.as_view(), name="forgot_password"),
+    path("reset-password/", ResetPasswordView.as_view(), name="reset_password"),
+
     path('api/healthcare-users/', UserProfileView.as_view(), name='user_profile'),
     
     # JWT token refresh endpoint

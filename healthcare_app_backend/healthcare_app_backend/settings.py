@@ -87,7 +87,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'Healthcare',
         'USER': 'postgres',
-        'PASSWORD': 'yash1009',
+        'PASSWORD': 'krish1023',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -109,7 +109,7 @@ DATABASES = {
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'djongo',
-#         'NAME': 'Healthcare',
+#         'NAME': 'Healthcare2',
 #         'CLIENT': {
 #             'host': 'localhost',
 #             'port': 27017,
