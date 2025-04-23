@@ -6,10 +6,11 @@ class Doctor(models.Model):
     class Meta:
         db_table = 'doctors'
 
-    hospital = models.ForeignKey(
+    hospital_name = models.ForeignKey(
         Hospital_Details, on_delete=models.CASCADE, related_name='doctor_profiles',
         null=True, blank=True
     )
+    
     doctor_name = models.CharField(max_length=100)
     specialization = models.CharField(max_length=100)
     experience_years = models.IntegerField(default=0)

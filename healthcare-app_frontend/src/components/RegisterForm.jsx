@@ -156,7 +156,7 @@ const RegisterForm = () => {
     };
 
     try {
-      const response = await axios.post('http://localhost:8000/api/register/', userData);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/register/`, userData);
 
       if (response && response.data) {
         setMessage(response.data.message || "Registration successful! An activation link has been sent to your email.");

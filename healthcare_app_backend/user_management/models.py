@@ -34,7 +34,7 @@ class CustomUserManager(BaseUserManager):
 # Custom User Model with Input Validation
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
-        ('user', 'Patient'),
+        ('user', 'User'),
         ('doctor', 'Doctor'),
     ]
 

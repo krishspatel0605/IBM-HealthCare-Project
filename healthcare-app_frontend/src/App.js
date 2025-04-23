@@ -5,11 +5,12 @@ import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import UserHome from './components/user/UserHome';
 import VerifyOTP from './components/verifyOtp';
-import ProtectedRoute from "./components/ProtectedRoute"; // ✅ Import ProtectedRoute
+import ProtectedRoute from "./components/ProtectedRoute";
 import VerifyLoginOTP from './components/VerifyLoginOTP';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import DoctorDashboardPage from './components/AdminDashBoard/DoctorDashboardPage';
+import About from './components/About';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/activate" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/about" element={<About />} />
         {/* ✅ Protected Routes - Only accessible when authenticated */}
         <Route element={<ProtectedRoute />}>
           <Route path="/userhome" element={<UserHome />} />

@@ -2,18 +2,20 @@ import { Navigate, Outlet } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 const ProtectedRoute = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("accessToken"));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("accessToken");
       setIsAuthenticated(!!token);
+
     };
 
-    window.addEventListener("storage", checkAuth); // Listen for storage changes
-    checkAuth(); // Initial authentication check
+    checkAuth();
 
-    return () => window.removeEventListener("storage", checkAuth);
+    const interval = setInterval(checkAuth, 1000); // Check every second
+
+    return () => clearInterval(interval);
   }, []);
 
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;

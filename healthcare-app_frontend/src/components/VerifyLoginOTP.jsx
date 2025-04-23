@@ -80,16 +80,9 @@ const VerifyLoginOTP = () => {
         localStorage.setItem("role", role);
         window.dispatchEvent(new Event("storage"));  
         // Directly navigate without delay
-        if (role === "doctor" ) {
-          navigate("/dashboard");
-        } else if (role === "user") {
-          navigate("/userhome");
-        }
-        else {
-          navigate("/"); // Default case if role is not recognized
-        }
-  
-        setError(""); // Reset error if everything is successful
+        setTimeout(() => {
+          navigate(role === "doctor" ? "/dashboard" : "/userhome");
+        }, 2000);
       } else {
         setError("Invalid response from server. Please try again.");
       }

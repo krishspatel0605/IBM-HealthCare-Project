@@ -55,7 +55,7 @@ class RegisterUserView(APIView):
         experience = request.data.get("experience", 0)
         availability = request.data.get("availability", "")
         patients_treated = request.data.get("patientsTreated", 0)
-        hospital_name = request.data.get("hospitalName", "")
+        hospital_name = request.data.get("hospital_name", "")
 
         if role not in ["user", "doctor"]:
             return Response({'error': 'Invalid role selected.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -354,6 +354,11 @@ class LogoutView(APIView):
                 token = RefreshToken(refresh_token)
                 token.blacklist()
                 return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+            
+                localStorage.removeItem("refresh_token");
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("role");
+                    
             except Exception as e:
                 return Response({"error": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
 

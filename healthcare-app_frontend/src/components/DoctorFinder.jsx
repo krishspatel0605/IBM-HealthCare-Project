@@ -5,52 +5,52 @@ import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhon
 import { MdLocalHospital, MdAccountCircle } from 'react-icons/md';
 
 // Set the base API URL with fallback options
-const getApiBaseUrl = () => {
-  // Try different possible backend URLs in order of preference
-  const possibleUrls = [
-    'http://localhost:8000/api',  // Default development URL
-    'http://127.0.0.1:8000/api',  // Alternative localhost URL
-    window.location.origin + '/api' // Same-origin API for production
-  ];
+// const getApiBaseUrl = () => {
+//   // Try different possible backend URLs in order of preference
+//   const possibleUrls = [
+//     'http://localhost:8000/api',  // Default development URL
+//     'http://127.0.0.1:8000/api',  // Alternative localhost URL
+//     window.location.origin + '/api' // Same-origin API for production
+//   ];
   
-  // Get stored URL from localStorage if available
-  const storedUrl = localStorage.getItem('api_base_url');
-  if (storedUrl) {
-    return storedUrl;
-  }
+//   // Get stored URL from localStorage if available
+//   const storedUrl = localStorage.getItem('api_base_url');
+//   if (storedUrl) {
+//     return storedUrl;
+//   }
   
-  return possibleUrls[0]; // Default to first option
-};
+//   return possibleUrls[0]; // Default to first option
+// };
 
-const API_BASE_URL = getApiBaseUrl();
+// const API_BASE_URL = getApiBaseUrl();
 
-// Helper function to try alternative API URLs if the main one fails
-const tryAlternativeApiUrls = async (endpoint, retryCount = 0) => {
-  const possibleUrls = [
-    'http://localhost:8000/api',
-    'http://127.0.0.1:8000/api',
-    window.location.origin + '/api'
-  ];
+// // Helper function to try alternative API URLs if the main one fails
+// const tryAlternativeApiUrls = async (endpoint, retryCount = 0) => {
+//   const possibleUrls = [
+//     'http://localhost:8000/api',
+//     'http://127.0.0.1:8000/api',
+//     window.location.origin + '/api'
+//   ];
   
-  // Don't retry more than available URLs
-  if (retryCount >= possibleUrls.length) {
-    throw new Error('All API URL options failed');
-  }
+//   // Don't retry more than available URLs
+//   if (retryCount >= possibleUrls.length) {
+//     throw new Error('All API URL options failed');
+//   }
   
-  try {
-    const response = await axios.get(`${possibleUrls[retryCount]}/${endpoint}`);
+//   try {
+//     const response = await axios.get(`${possibleUrls[retryCount]}/${endpoint}`);
     
-    // If successful, save this working URL for future use
-    localStorage.setItem('api_base_url', possibleUrls[retryCount]);
-    console.log(`Connection established with: ${possibleUrls[retryCount]}`);
+//     // If successful, save this working URL for future use
+//     localStorage.setItem('api_base_url', possibleUrls[retryCount]);
+//     console.log(`Connection established with: ${possibleUrls[retryCount]}`);
     
-    return response;
-  } catch (error) {
-    console.error(`Failed to connect to ${possibleUrls[retryCount]}: ${error.message}`);
-    // Try the next URL
-    return tryAlternativeApiUrls(endpoint, retryCount + 1);
-  }
-};
+//     return response;
+//   } catch (error) {
+//     console.error(`Failed to connect to ${possibleUrls[retryCount]}: ${error.message}`);
+//     // Try the next URL
+//     return tryAlternativeApiUrls(endpoint, retryCount + 1);
+//   }
+// };
 
 // Common conditions for suggestions
 const COMMON_CONDITIONS = [
@@ -181,7 +181,7 @@ const DoctorFinder = () => {
   // Fetch user data
   const fetchUserData = async (token) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/user-profile/`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/user-profile/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setUserData(response.data);
@@ -193,7 +193,7 @@ const DoctorFinder = () => {
   // Fetch user's recent searches
   const fetchUserRecentSearches = async (token) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/user-searches/`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/user-searches/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setRecentSearches(response.data.searches || []);
@@ -207,7 +207,7 @@ const DoctorFinder = () => {
   // Fetch user's saved doctors
   const fetchUserSavedDoctors = async (token) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/saved-doctors/`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/saved-doctors/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setSavedDoctors(response.data.doctors || []);
@@ -221,7 +221,7 @@ const DoctorFinder = () => {
   // Fetch recommended conditions based on user profile
   const fetchRecommendedConditions = async (token) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/recommended-conditions/`, {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/recommended-conditions/`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       setRecommendedConditions(response.data.conditions || []);
@@ -240,7 +240,7 @@ const DoctorFinder = () => {
     if (!token) return;
     
     try {
-      await axios.post(`${API_BASE_URL}/save-search/`, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/save-search/`, {
         query: query
       }, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -267,7 +267,7 @@ const DoctorFinder = () => {
     if (!token) return;
     
     try {
-      await axios.post(`${API_BASE_URL}/save-doctor/`, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/save-doctor/`, {
         doctor_id: doctorId
       }, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -324,7 +324,7 @@ const DoctorFinder = () => {
       let response;
       try {
         // First try the main API URL
-        response = await axios.get(`${API_BASE_URL}/list-all-doctors/?limit=100`);
+        response = await axios.get(`${process.env.REACT_APP_API_URL}/api/list-all-doctors/?limit=100`);
       } catch (initialError) {
         console.log("Initial API URL failed, trying alternatives");
         // If that fails, try alternative URLs
@@ -481,7 +481,7 @@ const DoctorFinder = () => {
       );
 
       // Include sort option and user location in the API request if available
-      let apiUrl = `${API_BASE_URL}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption === 'default' ? 'similarity' : sortOption}&limit=100`;
+      let apiUrl = `${process.env.REACT_APP_API_URL}/api/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption === 'default' ? 'similarity' : sortOption}&limit=100`;
       if (userLatitude !== null && userLongitude !== null) {
         apiUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
       }
@@ -654,7 +654,7 @@ const DoctorFinder = () => {
       console.log(`Performing simple search for "${query}" sorted by ${sortBy}`);
       
       // Get all doctors
-      const response = await axios.get(`${API_BASE_URL}/list-all-doctors/`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/list-all-doctors/`);
       
       if (!response.data.doctors || response.data.doctors.length === 0) {
         return { recommended_doctors: [], query, results_count: 0 };
