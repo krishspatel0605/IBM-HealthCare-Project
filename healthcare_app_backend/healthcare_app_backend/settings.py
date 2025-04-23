@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
-    'djongo',
 ]
 
 MIDDLEWARE = [
@@ -82,17 +81,26 @@ WSGI_APPLICATION = "healthcare_app_backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'Healthcare',
+#         'USER': 'postgres',
+#         'PASSWORD': 'yash1009',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'HEAL',
+        'NAME': 'Demo',
         'USER': 'postgres',
         'PASSWORD': 'yash1009',
         'HOST': 'localhost',
         'PORT': '5432',
+        }
     }
-}
-
 
 
 # Database
@@ -216,6 +224,19 @@ DEFAULT_FROM_EMAIL = 'noreply@example.com'
 CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
 
 RECAPTCHA_SECRET_KEY = '6LftjRcrAAAAAMzzz5Mj2AMpGmHhYwUoswKQlvv2'
+
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-healthcare',
+        'TIMEOUT': 300,  # 5 minutes
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,  # 1/3 of entries are culled when max is reached
+        }
+    }
+}
 
 # import logging
 

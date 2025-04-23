@@ -52,7 +52,10 @@ class DoctorRecommender:
     def fit(self, doctors_data: List[Dict[str, Any]]) -> bool:
         try:
             df = pd.DataFrame(doctors_data)
-            df['conditions_treated'] = df.get('conditions_treated', [[]]).apply(self._preprocess_conditions)
+            # Fix: Properly handle conditions_treated column
+            if 'conditions_treated' not in df.columns:
+                df['conditions_treated'] = [[]]
+            df['conditions_treated'] = df['conditions_treated'].apply(self._preprocess_conditions)
 
             self.doctors_df = df.copy()
             self.mlb = MultiLabelBinarizer()

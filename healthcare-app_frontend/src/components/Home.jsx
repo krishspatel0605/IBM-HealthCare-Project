@@ -25,25 +25,15 @@ export default function DoctorPlatform() {
   const handleSignIn = () => navigate('/login');
   
   const handleLogOut = () => {
-    // Clear all possible authentication tokens
+    // Only remove the tokens we're actually using
     localStorage.removeItem('auth_token');
     localStorage.removeItem('refresh_token');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_id');
     localStorage.removeItem('user_role');
-    sessionStorage.removeItem('auth_token');
-    sessionStorage.removeItem('refresh_token');
-    sessionStorage.removeItem('access_token');
-    sessionStorage.removeItem('token');
     
     setIsLoggedIn(false);
     
-    // Use a slight delay before redirecting to ensure tokens are cleared
-    setTimeout(() => {
-      // No need to redirect since we're already on the home page, just refresh
-      window.location.reload();
-    }, 100);
+    // Use navigate instead of window.location for better SPA behavior
+    navigate('/', { replace: true });
   };
   
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);

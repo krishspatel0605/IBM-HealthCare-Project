@@ -214,174 +214,63 @@ def recommend_doctors(request):
     """
     Recommend doctors based on query condition using ML model
     """
-    from user_management.models import User
-
-    query = request.GET.get('query', '').strip()
+    query = request.GET.get('query', '').strip().lower()
     specialization = request.GET.get('specialization', None)
-    limit = int(request.GET.get('limit', 10000))  # Set a high default limit to effectively disable pagination
-    # Removed page parameter to disable pagination
-    user_latitude = request.GET.get('user_latitude', None)
-    user_longitude = request.GET.get('user_longitude', None)
+    user_latitude = request.GET.get('user_latitude')
+    user_longitude = request.GET.get('user_longitude')
+    page = int(request.GET.get('page', 1))
+    limit = int(request.GET.get('limit', 10))
 
-    # Parse optional weight parameters for tuning
-    def parse_weight(param_name):
-        try:
-            val = float(request.GET.get(param_name, None))
-            if 0 <= val <= 1:
-                return val
-        except (TypeError, ValueError):
-            pass
-        return None
-
-    weights = {
-        'similarity': parse_weight('similarity_weight'),
-        'specialization': parse_weight('specialization_weight'),
-        'experience': parse_weight('experience_weight'),
-        'rating': parse_weight('rating_weight'),
-        'patients_treated': parse_weight('patients_treated_weight'),
-        'fee': parse_weight('fee_weight')
-    }
-    # Remove None values to use defaults in recommender
-    weights = {k: v for k, v in weights.items() if v is not None}
-    
     if not query:
         return Response(
             {'error': 'Please provide a search query'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # If latitude or longitude not provided, return error as User model has no lat/lon fields
-    if user_latitude is None or user_longitude is None:
-        return Response(
-            {'error': 'User latitude and longitude must be provided'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Convert latitude and longitude to float if provided
-    if user_latitude is not None and user_longitude is not None:
-        try:
-            user_latitude = float(user_latitude)
-            user_longitude = float(user_longitude)
-        except ValueError:
-            return Response(
-                {'error': 'Invalid latitude or longitude values'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
-    # Get or initialize recommender
-    recommender = get_recommender()
-    
-    if recommender is None:
-        logger.warning("Recommendation system not available")
-        return Response(
-            {'error': 'Recommendation system not available'},
-            status=status.HTTP_503_SERVICE_UNAVAILABLE
-        )
-    
+
     try:
-        # Get recommendations with optional weights and without pagination
-        recommendations = recommender.recommend_doctors(
-            query=query,
-            specialization=specialization,
-            user_latitude=user_latitude,
-            user_longitude=user_longitude,
-            min_score=0.1,
-            limit=limit,
-            weights=weights if weights else None
+        # First get matching doctors from Doctor model
+        doctors = Doctor.objects.filter(
+            Q(doctor_name__icontains=query) |
+            Q(specialization__icontains=query) |
+            Q(conditions_treated__contains=query)
         )
+
+        # Combine and deduplicate results
+        combined_doctors = []
+        seen_mobile_numbers = set()
+
+        # Add doctors from Doctor model
+        for doctor in doctors:
+            if doctor.mobile_number not in seen_mobile_numbers:
+                seen_mobile_numbers.add(doctor.mobile_number)
+                doctor_data = {
+                    'id': doctor.id,
+                    'name': doctor.doctor_name,
+                    'specialization': doctor.specialization,
+                    'experience': doctor.experience_years,
+                    'mobile_number': doctor.mobile_number,
+                    'rating': doctor.rating,
+                    'availability': doctor.availability,
+                    'fee': doctor.consultation_fee_inr,
+                    'conditions_treated': doctor.conditions_treated,
+                    'treats_searched_condition': any(query in condition.lower() for condition in (doctor.conditions_treated or []))
+                }
+                combined_doctors.append(doctor_data)
+
+        results = {
+            'recommended_doctors': combined_doctors,
+            'query': query,
+            'results_count': len(combined_doctors),
+            'using_ml_recommendations': False,
+            'total_pages': (len(combined_doctors) + limit - 1) // limit
+        }
+
+        return Response(results)
+
     except Exception as e:
         logger.error(f"Error in doctor recommendation: {str(e)}", exc_info=True)
         return Response(
             {'error': 'An error occurred while fetching recommendations'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    
-    if not recommendations:
-        return Response({
-            'recommended_doctors': [],
-            'query': query,
-            'specialization': specialization,
-            'results_count': 0,
-            'using_ml_recommendations': True,
-            'message': 'No recommendations found for the given query'
-        })
-    
-    # Map keys to expected frontend keys
-    mapped_recommendations = []
-    for doc in recommendations:
-        mapped_doc = doc.copy()
-        if 'doctor_name' in mapped_doc:
-            mapped_doc['name'] = mapped_doc.pop('doctor_name')
-        if 'experience_years' in mapped_doc:
-            mapped_doc['experience'] = mapped_doc.pop('experience_years')
-        if 'consultation_fee_inr' in mapped_doc:
-            mapped_doc['fee'] = mapped_doc.pop('consultation_fee_inr')
-        if 'address' in mapped_doc:
-            mapped_doc['location'] = mapped_doc.pop('address')
-        mapped_recommendations.append(mapped_doc)
-    
-    return Response({
-        'recommended_doctors': mapped_recommendations,
-        'query': query,
-        'specialization': specialization,
-        'results_count': len(mapped_recommendations),
-        'using_ml_recommendations': True
-    })
-
-def simple_doctor_search(request):
-    """
-    Simple search fallback when ML recommendations fail
-    """
-    query = request.GET.get('query', '').strip().lower()
-    sort_by = request.GET.get('sort_by', 'experience')  # Default to experience-based sorting
-    limit = int(request.GET.get('limit', 20))  # Default to 20, allow overriding
-    
-    try:
-        # Search in name, specialization, and conditions
-        doctors = Doctor.objects.filter(
-            Q(name__icontains=query) |
-            Q(specialization__icontains=query) |
-            Q(conditions_treated__icontains=query)
-        )
-        
-        if not doctors.exists():
-            return Response({
-                'recommended_doctors': [],
-                'query': query,
-                'sort_by': sort_by,
-                'results_count': 0,
-                'message': f'No doctors found for "{query}"'
-            })
-        
-        # Serialize doctors
-        serialized_doctors = []
-        for doctor in doctors:
-            doctor_data = DoctorSerializer(doctor).data
-            # Remove matched_conditions and treats_searched_condition to focus on doctor names
-            # Conditions and matched_conditions are omitted
-            
-            serialized_doctors.append(doctor_data)
-        
-        # Sort based on criteria
-        if sort_by.lower() == 'rating':
-            serialized_doctors.sort(key=lambda x: (-x.get('rating', 0), -x.get('experience', 0)))
-        elif sort_by.lower() == 'patients_treated':
-            serialized_doctors.sort(key=lambda x: (x.get('patients_treated', float('inf'))))
-        else:  # Default to experience
-            serialized_doctors.sort(key=lambda x: (-x.get('experience', 0), -x.get('rating', 0)))
-        
-        return Response({
-            'recommended_doctors': serialized_doctors,
-            'query': query,
-            'sort_by': sort_by,
-            'results_count': len(serialized_doctors),
-            'using_ml_recommendations': False
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in simple doctor search: {str(e)}")
-        return Response(
-            {'error': 'An error occurred while searching for doctors'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -389,19 +278,12 @@ def simple_doctor_search(request):
 def list_all_doctors(request):
     """List all doctors in the database"""
     try:
-        # Get the limit parameter, with a default of 0 (no limit)
-        limit = int(request.GET.get('limit', 0))
-        
         doctors = Doctor.objects.all()
-        
-        # Apply limit if specified and greater than 0
-        if limit > 0:
-            doctors = doctors[:limit]
-            
         serializer = DoctorSerializer(doctors, many=True)
+        
         return Response({
             'doctors': serializer.data,
-            'count': len(doctors)
+            'count': doctors.count()
         })
     except Exception as e:
         logger.error(f"Error listing doctors: {str(e)}")

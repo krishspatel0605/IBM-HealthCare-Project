@@ -19,9 +19,13 @@ export default function DoctorDashboardPage() {
   const doctor = { name: "Dr. Evelyn Reed", avatarUrl: null }; // Use avatarUrl if available
 
   const handleLogout = () => {
-    console.log("Logging out doctor...");
-    // Add real logout logic
-    navigate('/login'); // Or your login route
+    // Only remove the tokens we're actually using
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_role');
+    
+    // Use navigate with replace to prevent back navigation
+    navigate('/login', { replace: true });
   };
 
   // --- Placeholder Data (Replace with API calls) ---

@@ -22,10 +22,20 @@ const VerifyLoginOTP = () => {
   const email = searchParams.get("email");
 
   useEffect(() => {
+    // Redirect to login if no email is present
     if (!email) {
       setError("Email is missing. Please try logging in again.");
+      setTimeout(() => navigate("/login"), 2000);
+      return;
     }
-  }, [email]);
+
+    // Check if already authenticated
+    const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
+    if (token) {
+      const role = localStorage.getItem("user_role");
+      navigate(role === "doctor" ? "/dashboard" : "/userhome", { replace: true });
+    }
+  }, [email, navigate]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -64,6 +74,7 @@ const VerifyLoginOTP = () => {
     }
   
     setLoading(true);
+    setError("");
     
     try {
       const response = await axios.post(
@@ -75,14 +86,24 @@ const VerifyLoginOTP = () => {
       const { access, refresh, role } = response.data;
   
       if (access && refresh && role) {
-        localStorage.setItem("accessToken", access);
-        localStorage.setItem("refreshToken", refresh);
-        localStorage.setItem("role", role);
-        window.dispatchEvent(new Event("storage"));  
-        // Directly navigate without delay
-        setTimeout(() => {
-          navigate(role === "doctor" ? "/dashboard" : "/userhome");
-        }, 2000);
+        // Store tokens
+        localStorage.setItem("auth_token", access);
+        localStorage.setItem("refresh_token", refresh);
+        localStorage.setItem("user_role", role);
+        
+        // Trigger storage event for other components
+        window.dispatchEvent(new Event("storage"));
+
+        // Check for redirect URL
+        const redirectUrl = sessionStorage.getItem('redirectUrl');
+        sessionStorage.removeItem('redirectUrl'); // Clean up
+
+        // Navigate to the appropriate route
+        if (redirectUrl && redirectUrl !== '/login') {
+          navigate(redirectUrl, { replace: true });
+        } else {
+          navigate(role === "doctor" ? "/dashboard" : "/userhome", { replace: true });
+        }
       } else {
         setError("Invalid response from server. Please try again.");
       }
@@ -93,17 +114,21 @@ const VerifyLoginOTP = () => {
     }
   };
   
-  
   const handleResendOTP = async () => {
     setTimer(30);
     setIsResendDisabled(true);
     setError("");
 
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/resend-login-otp/`, { email });
+      await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/resend-login-otp/`,
+        { email },
+        { withCredentials: true }
+      );
       alert("✅ OTP resent successfully!");
-    } catch {
-      setError("Failed to resend OTP. Try again later.");
+    } catch (err) {
+      setError("Failed to resend OTP. Please try again later.");
+      setIsResendDisabled(false);
     }
   };
 
@@ -115,70 +140,79 @@ const VerifyLoginOTP = () => {
           <img src={healthcareImage} alt="Verify OTP" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-blue-800/50 flex items-end p-6 text-white">
             <div>
-              <h2 className="text-2xl font-bold mb-2">Secure Login</h2>
-              <p className="opacity-90">We've sent a 6-digit OTP to your email</p>
+              <h3 className="text-2xl font-bold mb-2">Almost there!</h3>
+              <p className="text-sm opacity-90">Enter the OTP sent to your email to complete login.</p>
             </div>
           </div>
         </div>
 
         {/* Right form section */}
-        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
-          <div className="text-center mb-6">
-            <div className="inline-block bg-blue-100 p-4 rounded-full mb-4">
-              <FaKey className="text-2xl text-blue-600" />
-            </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</h1>
+        <div className="w-full md:w-1/2 p-8">
+          <div className="mb-8 text-center">
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</h2>
             <p className="text-gray-600">
-              Enter the OTP sent to <strong>{maskEmail(email)}</strong>
+              Enter the code sent to {maskEmail(email)}
             </p>
           </div>
 
-          <div className="flex justify-center gap-2 mb-4">
-            {otp.map((digit, index) => (
-              <input
-                key={index}
-                id={`otp-${index}`}
-                type="text"
-                value={digit}
-                maxLength={1}
-                onChange={(e) => handleOtpChange(index, e.target.value)}
-                onKeyDown={(e) => handleBackspace(index, e)}
-                className="w-12 h-12 text-center text-xl font-semibold text-gray-800 border border-gray-300 rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            ))}
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 bg-red-50 p-3 rounded-lg text-red-600 mb-2">
-              <FaExclamationTriangle className="flex-shrink-0" />
-              <span>{error}</span>
+          <div className="space-y-6">
+            {/* OTP Input Fields */}
+            <div className="flex justify-center space-x-3">
+              {otp.map((digit, index) => (
+                <input
+                  key={index}
+                  type="text"
+                  id={`otp-${index}`}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(index, e.target.value)}
+                  onKeyDown={(e) => handleBackspace(index, e)}
+                  maxLength={1}
+                  className="w-12 h-12 text-center text-2xl border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                />
+              ))}
             </div>
-          )}
 
-          <button
-            onClick={handleVerify}
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-all"
-          >
-            {loading ? "Verifying..." : "Verify OTP"}
-          </button>
+            {/* Error Message */}
+            {error && (
+              <div className="flex items-center text-red-600 bg-red-50 p-3 rounded-lg">
+                <FaExclamationTriangle className="h-5 w-5 mr-2" />
+                {error}
+              </div>
+            )}
 
-          <div className="text-center mt-6 text-sm">
-            {timer > 0 ? (
-              <span className="text-gray-500">Resend OTP in {timer}s</span>
-            ) : (
+            {/* Verify Button */}
+            <button
+              onClick={handleVerify}
+              disabled={loading}
+              className={`w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
+                loading ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              {loading ? "Verifying..." : "Verify OTP"}
+            </button>
+
+            {/* Resend OTP */}
+            <div className="text-center">
               <button
                 onClick={handleResendOTP}
                 disabled={isResendDisabled}
-                className={`font-medium ${
-                  isResendDisabled
-                    ? "text-gray-400 cursor-not-allowed"
-                    : "text-blue-600 hover:underline"
+                className={`text-blue-600 hover:text-blue-800 ${
+                  isResendDisabled ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
-                Resend OTP
+                Resend OTP {timer > 0 && `(${timer}s)`}
               </button>
-            )}
+            </div>
+
+            {/* Back to Login */}
+            <div className="text-center">
+              <button
+                onClick={() => navigate("/login")}
+                className="text-gray-600 hover:text-gray-800"
+              >
+                ← Back to Login
+              </button>
+            </div>
           </div>
         </div>
       </div>
