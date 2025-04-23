@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
-    'djongo',
 ]
 
 MIDDLEWARE = [
@@ -82,17 +81,26 @@ WSGI_APPLICATION = "healthcare_app_backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'Healthcare',
+#         'USER': 'postgres',
+#         'PASSWORD': 'yash1009',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'Healthcare',
+        'NAME': 'Health',
         'USER': 'postgres',
         'PASSWORD': 'yash1009',
         'HOST': 'localhost',
         'PORT': '5432',
     }
 }
-
 
 
 # Database

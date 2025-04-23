@@ -13,13 +13,25 @@ const LoginForm = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const navigate = useNavigate();
 
-  // Redirect user if already logged in
+  // Redirect user if already logged in based on role
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/userhome');
+    const role = localStorage.getItem('role');
+    if (token && role) {
+      if (role === 'doctor') {
+        navigate('/dashboard');
+      } else if (role === 'patient') {
+        navigate('/userhome');
+      } else if (role === 'admin') {
+        navigate('/');
+      } else {
+        navigate('/');
+      }
+    } else {
+      setIsCheckingAuth(false);
     }
   }, [navigate]);
 
@@ -28,8 +40,6 @@ const LoginForm = () => {
     setError('');
     setMessage('');
     setLoading(true);
-  
-    console.log("Entered Email:", email); // ✅ Check if email is captured
   
     const emailPattern = /^[^\s@]+@[^\s@]+$/;
     if (!email || !password) {
@@ -49,38 +59,39 @@ const LoginForm = () => {
         { withCredentials: true }
       );
   
-      console.log("API Response:", response.data); // ✅ Log the API response
-  
       if (response.data.otp_required) {
+        setLoading(false);
         const otpURL = `/verify-login-otp?email=${encodeURIComponent(email)}`;
-        console.log("Navigating to:", otpURL); // ✅ Log redirection URL
         navigate(otpURL);
       } else if (response.data.access) {
         localStorage.setItem('token', response.data.access);
+        localStorage.setItem('role', response.data.role); // Store role in localStorage
         setMessage('Login successful! Redirecting...');
+        setLoading(false);
   
-        setTimeout(() => {
-          if (response.data.role === 'patient') {
-            navigate('/userhome');
-          } else if (response.data.role === 'doctor') {
-            navigate('/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 1500);
+        if (response.data.role === 'patient') {
+          navigate('/userhome');
+        } else if (response.data.role === 'doctor') {
+          navigate('/dashboard');
+        } else if (response.data.role === 'admin') {
+          navigate('/');
+        } else {
+          navigate('/');
+        }
       } else {
+        setLoading(false);
         setError('Unexpected response. Please try again.');
       }
     } catch (err) {
-      console.error("Error Response:", err.response?.data); // ✅ Log any errors
-      setError(err.response?.data?.detail || 'Invalid credentials. Please try again.');
-    } finally {
       setLoading(false);
+      setError(err.response?.data?.detail || 'Invalid credentials. Please try again.');
     }
   };
-  
-  
 
+  if (isCheckingAuth) {
+    return null; // or a loader component if preferred
+  }
+  
   return (
     <div className="min-h-0 min-w-0 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
       <div className="flex flex-col md:flex-row w-11/12 max-w-6xl bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -173,9 +184,33 @@ const LoginForm = () => {
 
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+              className={`w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+              disabled={loading}
             >
-              <FaLock className="text-lg" />
+              {loading ? (
+                <svg
+                  className="animate-spin h-5 w-5 text-white mr-3"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8z"
+                  ></path>
+                </svg>
+              ) : (
+                <FaLock className="text-lg" />
+              )}
               Sign In
             </button>
 

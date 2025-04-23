@@ -218,8 +218,6 @@ def recommend_doctors(request):
 
     query = request.GET.get('query', '').strip()
     specialization = request.GET.get('specialization', None)
-    limit = int(request.GET.get('limit', 10000))  # Set a high default limit to effectively disable pagination
-    # Removed page parameter to disable pagination
     user_latitude = request.GET.get('user_latitude', None)
     user_longitude = request.GET.get('user_longitude', None)
 
@@ -241,7 +239,6 @@ def recommend_doctors(request):
         'patients_treated': parse_weight('patients_treated_weight'),
         'fee': parse_weight('fee_weight')
     }
-    # Remove None values to use defaults in recommender
     weights = {k: v for k, v in weights.items() if v is not None}
     
     if not query:
@@ -250,14 +247,12 @@ def recommend_doctors(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # If latitude or longitude not provided, return error as User model has no lat/lon fields
     if user_latitude is None or user_longitude is None:
         return Response(
             {'error': 'User latitude and longitude must be provided'},
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Convert latitude and longitude to float if provided
     if user_latitude is not None and user_longitude is not None:
         try:
             user_latitude = float(user_latitude)
@@ -268,7 +263,6 @@ def recommend_doctors(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
-    # Get or initialize recommender
     recommender = get_recommender()
     
     if recommender is None:
@@ -279,14 +273,13 @@ def recommend_doctors(request):
         )
     
     try:
-        # Get recommendations with optional weights and without pagination
         recommendations = recommender.recommend_doctors(
             query=query,
             specialization=specialization,
             user_latitude=user_latitude,
             user_longitude=user_longitude,
             min_score=0.1,
-            limit=limit,
+            limit=10000,
             weights=weights if weights else None
         )
     except Exception as e:
@@ -306,7 +299,6 @@ def recommend_doctors(request):
             'message': 'No recommendations found for the given query'
         })
     
-    # Map keys to expected frontend keys
     mapped_recommendations = []
     for doc in recommendations:
         mapped_doc = doc.copy()
@@ -324,84 +316,20 @@ def recommend_doctors(request):
         'recommended_doctors': mapped_recommendations,
         'query': query,
         'specialization': specialization,
-        'results_count': len(mapped_recommendations),
+        'results_count': len(recommendations),
         'using_ml_recommendations': True
     })
-
-def simple_doctor_search(request):
-    """
-    Simple search fallback when ML recommendations fail
-    """
-    query = request.GET.get('query', '').strip().lower()
-    sort_by = request.GET.get('sort_by', 'experience')  # Default to experience-based sorting
-    limit = int(request.GET.get('limit', 20))  # Default to 20, allow overriding
-    
-    try:
-        # Search in name, specialization, and conditions
-        doctors = Doctor.objects.filter(
-            Q(name__icontains=query) |
-            Q(specialization__icontains=query) |
-            Q(conditions_treated__icontains=query)
-        )
-        
-        if not doctors.exists():
-            return Response({
-                'recommended_doctors': [],
-                'query': query,
-                'sort_by': sort_by,
-                'results_count': 0,
-                'message': f'No doctors found for "{query}"'
-            })
-        
-        # Serialize doctors
-        serialized_doctors = []
-        for doctor in doctors:
-            doctor_data = DoctorSerializer(doctor).data
-            # Remove matched_conditions and treats_searched_condition to focus on doctor names
-            # Conditions and matched_conditions are omitted
-            
-            serialized_doctors.append(doctor_data)
-        
-        # Sort based on criteria
-        if sort_by.lower() == 'rating':
-            serialized_doctors.sort(key=lambda x: (-x.get('rating', 0), -x.get('experience', 0)))
-        elif sort_by.lower() == 'patients_treated':
-            serialized_doctors.sort(key=lambda x: (x.get('patients_treated', float('inf'))))
-        else:  # Default to experience
-            serialized_doctors.sort(key=lambda x: (-x.get('experience', 0), -x.get('rating', 0)))
-        
-        return Response({
-            'recommended_doctors': serialized_doctors,
-            'query': query,
-            'sort_by': sort_by,
-            'results_count': len(serialized_doctors),
-            'using_ml_recommendations': False
-        })
-        
-    except Exception as e:
-        logger.error(f"Error in simple doctor search: {str(e)}")
-        return Response(
-            {'error': 'An error occurred while searching for doctors'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 @api_view(['GET'])
 def list_all_doctors(request):
     """List all doctors in the database"""
     try:
-        # Get the limit parameter, with a default of 0 (no limit)
-        limit = int(request.GET.get('limit', 0))
-        
         doctors = Doctor.objects.all()
-        
-        # Apply limit if specified and greater than 0
-        if limit > 0:
-            doctors = doctors[:limit]
-            
         serializer = DoctorSerializer(doctors, many=True)
+        
         return Response({
             'doctors': serializer.data,
-            'count': len(doctors)
+            'count': doctors.count()
         })
     except Exception as e:
         logger.error(f"Error listing doctors: {str(e)}")

@@ -148,9 +148,7 @@ const DoctorFinder = () => {
   const [showAllDoctors, setShowAllDoctors] = useState(false);
   const [dbStatus, setDbStatus] = useState('');
   const [usingDummyData, setUsingDummyData] = useState(false);
-  const [sortOption, setSortOption] = useState('default');
-  const [showSortMenu, setShowSortMenu] = useState(false);
-
+  
   // New state for user location
   const [userLatitude, setUserLatitude] = useState(null);
   const [userLongitude, setUserLongitude] = useState(null);
@@ -162,6 +160,10 @@ const DoctorFinder = () => {
   const [savedDoctors, setSavedDoctors] = useState([]);
   const [recommendedConditions, setRecommendedConditions] = useState([]);
   
+  const [currentPage, setCurrentPage] = useState(1);
+  const [doctorsPerPage] = useState(9);
+  const [paginatedDoctors, setPaginatedDoctors] = useState([]);
+
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -399,114 +401,39 @@ const DoctorFinder = () => {
     }
   }, [searchQuery]);
 
-  // Sort doctors based on the selected option
-  const sortDoctors = (doctorsList, option) => {
-    const sortedList = [...doctorsList];
-    
-    switch(option) {
-      case "exp-high-low":
-        return sortedList.sort((a, b) => b.experience - a.experience);
-      case "exp-low-high":
-        return sortedList.sort((a, b) => a.experience - b.experience);
-      case "rating-high-low":
-        return sortedList.sort((a, b) => {
-          // Some doctors might not have ratings
-          const ratingA = a.rating || 0;
-          const ratingB = b.rating || 0;
-          return ratingB - ratingA;
-        });
-      case "rating-low-high":
-        return sortedList.sort((a, b) => {
-          const ratingA = a.rating || 0;
-          const ratingB = b.rating || 0;
-          return ratingA - ratingB;
-        });
-      case "fee-low-high":
-        return sortedList.sort((a, b) => {
-          const feeA = a.fee || 0;
-          const feeB = b.fee || 0;
-          return feeA - feeB;
-        });
-      case "fee-high-low":
-        return sortedList.sort((a, b) => {
-          const feeA = a.fee || 0;
-          const feeB = b.fee || 0;
-          return feeB - feeA;
-        });
-      case "default":
-      default:
-        return sortedList.sort((a, b) => {
-          // Prioritize doctors who treat the condition first
-          if (a.treats_searched_condition && !b.treats_searched_condition) return -1;
-          if (!a.treats_searched_condition && b.treats_searched_condition) return 1;
-          
-          // Then by similarity score if available
-          const scoreA = a.similarity_score || 0;
-          const scoreB = b.similarity_score || 0;
-          if (scoreA !== scoreB) return scoreB - scoreA;
-          
-          // Finally by experience as a tiebreaker
-          return b.experience - a.experience;
-        });
-    }
-  };
-
-  // Handle sort option change
-  const handleSortChange = (option) => {
-    setSortOption(option);
-    setDoctors(sortDoctors(doctors, option));
-    setShowSortMenu(false);
-  };
-
   const performSearch = async (searchQuery) => {
-    // Prevent searching with empty query
     if (!searchQuery || searchQuery.trim() === '') {
       setError('Please enter a condition, disease, or doctor name to search');
       return;
     }
-
-    // Clear previous results and set loading state
+  
     setDoctors([]);
     setLoading(true);
     setError('');
     setDbStatus('Searching for doctors...');
     const query = searchQuery.trim();
-
-    let needsFallback = false;
-
+  
     try {
-      // First attempt: Use the main API with complex query
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 8000)
-      );
-
-      // Include sort option and user location in the API request if available
-      let apiUrl = `${API_BASE_URL}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption === 'default' ? 'similarity' : sortOption}&limit=100`;
+      // Include user location in the API request if available
+      let apiUrl = `${API_BASE_URL}/recommend-doctors/?query=${encodeURIComponent(query)}&limit=100`;
       if (userLatitude !== null && userLongitude !== null) {
         apiUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
       }
       
-      const apiPromise = axios.get(apiUrl);
-      
-      console.log(`Searching for doctors: "${query}" (sorted by: ${sortOption}) with location: ${userLatitude}, ${userLongitude}`);
+      console.log(`Searching for doctors: "${query}" with location: ${userLatitude}, ${userLongitude}`);
       setDbStatus('Connecting to database...');
       
-      const response = await Promise.race([apiPromise, timeoutPromise]);
+      const response = await axios.get(apiUrl);
       
       console.log("API Response:", response.data);
       setDbStatus('Connected to database');
       
       if (response.data.recommended_doctors && response.data.recommended_doctors.length > 0) {
-        // Apply sorting to the doctors
-        const sortedDoctors = sortDoctors(response.data.recommended_doctors, sortOption);
-        setDoctors(sortedDoctors);
+        setDoctors(response.data.recommended_doctors);
         setUsingDummyData(false);
         
-        // Show what kind of recommendation engine is being used
         if (response.data.using_ml_recommendations) {
           console.log("Using ML recommendations");
-        } else {
-          console.log("Using simple filtering recommendations");
         }
       } else {
         setError(`No doctors found for "${query}"`);
@@ -514,132 +441,25 @@ const DoctorFinder = () => {
       
     } catch (error) {
       console.error("Error searching doctors:", error);
-      needsFallback = true;
       
-      try {
-        // Second attempt: Use simpler search
-        console.log("Attempting simple search as fallback");
-        setDbStatus('Trying simplified search...');
-        
-        // Try the list-all-doctors API as a fallback
-        const response = await performSimpleSearch(query, sortOption);
-        
-        if (response.recommended_doctors && response.recommended_doctors.length > 0) {
-          // Apply sorting to the simplified search results
-          const sortedDoctors = sortDoctors(response.recommended_doctors, sortOption);
-          setDoctors(sortedDoctors);
-          setUsingDummyData(false);
-          setDbStatus('Using simplified search results');
-        } else {
-          needsFallback = true;
-        }
-        
-      } catch (fallbackError) {
-        console.error("Error with simplified search:", fallbackError);
-        needsFallback = true;
-        
-        try {
-          // Third attempt: Try alternative API URLs
-          console.log("Trying alternative API URLs");
-          setDbStatus('Trying alternative connections...');
-          
-          // Try alternative URLs if available
-          const alternativeUrls = [
-            'http://127.0.0.1:8000/api',
-            'http://localhost:8000/api'
-          ];
-          
-          let alternativeSuccess = false;
-          
-          for (const baseUrl of alternativeUrls) {
-            try {
-              let altUrl = `${baseUrl}/recommend-doctors/?query=${encodeURIComponent(query)}&sort_by=${sortOption}`;
-              if (userLatitude !== null && userLongitude !== null) {
-                altUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
-              }
-              const altResponse = await axios.get(altUrl);
-              
-              if (altResponse.data.recommended_doctors && 
-                  altResponse.data.recommended_doctors.length > 0) {
-                setDoctors(altResponse.data.recommended_doctors);
-                setUsingDummyData(false);
-                setDbStatus('Connected via alternative route');
-                alternativeSuccess = true;
-                break;
-              }
-            } catch (e) {
-              console.log(`Alternative URL ${baseUrl} failed:`, e);
-            }
-          }
-          
-          if (!alternativeSuccess) {
-            needsFallback = true;
-          }
-          
-        } catch (altError) {
-          needsFallback = true;
-        }
-      }
-    }
-    
-    // Use dummy data if all else fails
-    if (needsFallback) {
-      if (error instanceof Error) {
-        if (error.message === 'Request timeout') {
-          setError('Database connection timed out');
-          setDbStatus('Database connection timeout');
-        } else if (error.code === 'ERR_NETWORK') {
-          setError('Network error - Backend server might be down');
-          setDbStatus('Network error');
-        } else {
-          setError(`Error: ${error.message}`);
-          setDbStatus('Database error');
-        }
-      } else {
-        setError('Unable to connect to the database');
-        setDbStatus('Connection failed');
-      }
-      
+      // Use dummy data as fallback
       console.log("Using filtered dummy data as fallback");
       setDbStatus('Using sample data (database unavailable)');
       
       // Filter dummy data based on search query
       const filteredDoctors = DUMMY_DOCTORS.filter(doctor => {
         const searchTermLower = query.toLowerCase();
-        
-        // Check doctor name
-        if (doctor.name && doctor.name.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        
-        // Check specialization
-        if (doctor.specialization && doctor.specialization.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        
-        // Check conditions treated
-        if (doctor.conditions_treated && doctor.conditions_treated.some(condition => 
-          condition && condition.toLowerCase().includes(searchTermLower)
-        )) {
-          return true;
-        }
-        
-        return false;
+        return (
+          (doctor.name && doctor.name.toLowerCase().includes(searchTermLower)) ||
+          (doctor.specialization && doctor.specialization.toLowerCase().includes(searchTermLower)) ||
+          (doctor.conditions_treated && doctor.conditions_treated.some(condition => 
+            condition && condition.toLowerCase().includes(searchTermLower)
+          ))
+        );
       });
       
-      // Sort the filtered data based on the selected sort option
-      let sortedDoctors = [...filteredDoctors];
-      
-      if (sortOption === 'rating') {
-        sortedDoctors.sort((a, b) => b.rating - a.rating);
-      } else if (sortOption === 'experience') {
-        sortedDoctors.sort((a, b) => b.experience - a.experience);
-      } else if (sortOption === 'fee') {
-        sortedDoctors.sort((a, b) => a.fee - b.fee);
-      } // Default is similarity (already sorted by matches)
-      
       if (filteredDoctors.length > 0) {
-        setDoctors(sortedDoctors);
+        setDoctors(filteredDoctors);
         setUsingDummyData(true);
       } else {
         setError(`No doctors found for "${query}"`);
@@ -647,99 +467,6 @@ const DoctorFinder = () => {
     }
     
     setLoading(false);
-  };
-
-  const performSimpleSearch = async (query, sortBy = 'experience') => {
-    try {
-      console.log(`Performing simple search for "${query}" sorted by ${sortBy}`);
-      
-      // Get all doctors
-      const response = await axios.get(`${API_BASE_URL}/list-all-doctors/`);
-      
-      if (!response.data.doctors || response.data.doctors.length === 0) {
-        return { recommended_doctors: [], query, results_count: 0 };
-      }
-      
-      // Filter doctors client-side
-      const filteredDoctors = response.data.doctors.filter(doctor => {
-        const queryLower = query.toLowerCase();
-        
-        // Check doctor name
-        if (doctor.name && doctor.name.toLowerCase().includes(queryLower)) {
-          return true;
-        }
-        
-        // Check specialization
-        if (doctor.specialization && doctor.specialization.toLowerCase().includes(queryLower)) {
-          return true;
-        }
-        
-        // Check conditions treated
-        const conditions = doctor.conditions_treated || [];
-        const conditionsList = Array.isArray(conditions) 
-          ? conditions 
-          : typeof conditions === 'string' 
-            ? conditions.split(',').map(c => c.trim()) 
-            : [];
-            
-        return conditionsList.some(condition => 
-          condition && condition.toLowerCase().includes(queryLower)
-        );
-      });
-      
-      // Add matched conditions
-      const enrichedDoctors = filteredDoctors.map(doctor => {
-        const queryLower = query.toLowerCase();
-        const conditions = doctor.conditions_treated || [];
-        const conditionsList = Array.isArray(conditions) 
-          ? conditions 
-          : typeof conditions === 'string' 
-            ? conditions.split(',').map(c => c.trim()) 
-            : [];
-            
-        // Find conditions that match the search query
-        const matchedConditions = conditionsList.filter(condition => 
-          condition.toLowerCase().includes(queryLower)
-        );
-        
-        return {
-          ...doctor,
-          matched_conditions: matchedConditions,
-          treats_searched_condition: matchedConditions.length > 0
-        };
-      });
-      
-      // Sort based on criteria
-      let sortedDoctors = [...enrichedDoctors];
-      
-      if (sortBy === 'rating') {
-        sortedDoctors.sort((a, b) => b.rating - a.rating);
-      } else if (sortBy === 'experience') {
-        sortedDoctors.sort((a, b) => b.experience - a.experience);
-      } else if (sortBy === 'fee') {
-        sortedDoctors.sort((a, b) => a.fee - b.fee);
-      } else {
-        // Default: Prioritize doctors who treat the condition
-        sortedDoctors.sort((a, b) => {
-          // First sort by whether they treat the condition
-          if (a.treats_searched_condition && !b.treats_searched_condition) return -1;
-          if (!a.treats_searched_condition && b.treats_searched_condition) return 1;
-          
-          // Then by experience
-          return b.experience - a.experience;
-        });
-      }
-      
-      return {
-        recommended_doctors: sortedDoctors,
-        query,
-        results_count: sortedDoctors.length
-      };
-      
-    } catch (error) {
-      console.error("Error in simple search:", error);
-      throw error;
-    }
   };
 
   const handleSearch = (e) => {
@@ -785,12 +512,25 @@ const DoctorFinder = () => {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Toggle showing all doctors
   const toggleAllDoctors = () => {
     setShowAllDoctors(!showAllDoctors);
     if (!showAllDoctors && allDoctors.length === 0) {
       loadAllDoctors();
     }
+  };
+
+  // Calculate paginated doctors whenever doctors array or page changes
+  useEffect(() => {
+    const indexOfLastDoctor = currentPage * doctorsPerPage;
+    const indexOfFirstDoctor = indexOfLastDoctor - doctorsPerPage;
+    setPaginatedDoctors(doctors.slice(indexOfFirstDoctor, indexOfLastDoctor));
+  }, [doctors, currentPage, doctorsPerPage]);
+
+  const totalPages = Math.ceil(doctors.length / doctorsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -1126,149 +866,20 @@ const DoctorFinder = () => {
           </div>
         )}
 
-        {/* Search results header with filters */}
+        {/* Search results header */}
         {searchPerformed && doctors.length > 0 && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
               <div>
                 <h2 className="text-xl font-semibold text-gray-800">
-                  Found {doctors.length} specialists for "{searchQuery}"
+                  Found {doctors.length} specialists
                 </h2>
                 {usingDummyData && (
                   <p className="text-amber-500 text-sm mt-1">
                     <FaExclamationTriangle className="inline mr-1" /> 
-                    Note: Showing demo data for display purposes. Database connection failed.
+                    Note: Showing demo data for display purposes.
                   </p>
                 )}
-              </div>
-              
-              <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-3">
-                {/* Sorting dropdown */}
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowSortMenu(!showSortMenu)}
-                    className="flex items-center justify-between w-56 px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  >
-                    <span>
-                      {sortOption === "default" && "Sort By: Default"}
-                      {sortOption === "exp-high-low" && "Sort: Experience (High to Low)"}
-                      {sortOption === "exp-low-high" && "Sort: Experience (Low to High)"}
-                      {sortOption === "rating-high-low" && "Sort: Rating (High to Low)"}
-                      {sortOption === "rating-low-high" && "Sort: Rating (Low to High)"}
-                      {sortOption === "fee-low-high" && "Sort: Fee (Low to High)"}
-                      {sortOption === "fee-high-low" && "Sort: Fee (High to Low)"}
-                    </span>
-                    <svg className="w-5 h-5 ml-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  
-                  {showSortMenu && (
-                    <div className="absolute right-0 z-10 mt-2 w-56 bg-white rounded-md shadow-lg">
-                      <div className="py-1 border border-gray-200 rounded-md">
-                        <button 
-                          onClick={() => handleSortChange("default")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "default" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Default
-                        </button>
-                        <button 
-                          onClick={() => handleSortChange("exp-high-low")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "exp-high-low" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Experience: High to Low
-                        </button>
-                        <button 
-                          onClick={() => handleSortChange("exp-low-high")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "exp-low-high" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Experience: Low to High
-                        </button>
-                        <button 
-                          onClick={() => handleSortChange("rating-high-low")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "rating-high-low" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Rating: High to Low
-                        </button>
-                        <button 
-                          onClick={() => handleSortChange("rating-low-high")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "rating-low-high" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Rating: Low to High
-                        </button>
-                        <button 
-                          onClick={() => handleSortChange("fee-low-high")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "fee-low-high" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Fee: Low to High
-                        </button>
-                        <button 
-                          onClick={() => handleSortChange("fee-high-low")}
-                          className={`block w-full text-left px-4 py-2 text-sm ${sortOption === "fee-high-low" ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"}`}
-                        >
-                          Fee: High to Low
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex items-center">
-                  <label className="mr-2 text-sm text-gray-600">Show:</label>
-                  <div className="flex">
-                    <button 
-                      onClick={() => setDoctors(sortDoctors(doctors, sortOption))}
-                      className="bg-blue-600 text-white text-sm py-2 px-3 rounded-l-lg hover:bg-blue-700 transition-colors"
-                    >
-                      All
-                    </button>
-                    <button
-                      onClick={() => {
-                        const filtered = doctors.filter(d => d.treats_searched_condition);
-                        setDoctors(sortDoctors(filtered, sortOption));
-                      }}
-                      className="bg-green-600 text-white text-sm py-2 px-3 rounded-r-lg hover:bg-green-700 transition-colors"
-                    >
-                      Matching Only
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Summary of specializations and conditions */}
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <h3 className="text-md font-medium text-blue-800 mb-2">Specialist Types Found:</h3>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {Array.from(new Set(doctors.map(d => d.specialization))).map((spec, i) => (
-                  <span key={i} className="bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full">
-                    {spec} ({doctors.filter(d => d.specialization === spec).length})
-                  </span>
-                ))}
-              </div>
-              
-              <h3 className="text-md font-medium text-green-800 mb-2">Conditions Treated:</h3>
-              <div className="flex flex-wrap gap-2">
-                {Array.from(new Set(doctors.flatMap(d => d.matched_conditions || []))).map((cond, i) => (
-                  <span key={i} className="bg-green-100 text-green-800 text-xs px-3 py-1 rounded-full font-medium">
-                    {cond}
-                  </span>
-                ))}
-                {Array.from(new Set(doctors.flatMap(d => {
-                  // Ensure conditions_treated is an array before using filter
-                  if (!d.conditions_treated) return [];
-                  const conditions = Array.isArray(d.conditions_treated) ? d.conditions_treated : 
-                    (typeof d.conditions_treated === 'string' ? [d.conditions_treated] : []);
-                  
-                  // Now filter out the matched conditions
-                  return conditions.filter(c => 
-                    !(d.matched_conditions || []).includes(c)
-                  );
-                }))).map((cond, i) => (
-                  <span key={i} className="bg-gray-100 text-gray-800 text-xs px-3 py-1 rounded-full">
-                    {cond}
-                  </span>
-                ))}
               </div>
             </div>
           </div>
@@ -1332,7 +943,7 @@ const DoctorFinder = () => {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {doctors.map((doctor) => (
+              {paginatedDoctors.map((doctor) => (
                 <div key={doctor.id} className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl ${doctor.treats_searched_condition ? 'border-l-4 border-green-500' : ''}`}>
                   <div className="bg-blue-600 text-white p-4">
                     <div className="flex items-start gap-2">
@@ -1415,17 +1026,60 @@ const DoctorFinder = () => {
                       )}
                     </div>
                     
-                    {/* Contact button */}
+                    {/* Book Appoinment button */}
                     <button 
                       className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                     >
                       <FaPhoneAlt />
-                      Contact
+                      Book Appoinment
                     </button>
                   </div>
                 </div>
               ))}
             </div>
+
+            {/* Add pagination controls */}
+            {doctors.length > 0 && (
+              <div className="flex justify-center mt-8 gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className={`px-4 py-2 rounded-lg ${
+                    currentPage === 1
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                {[...Array(totalPages)].map((_, index) => (
+                  <button
+                    key={index + 1}
+                    onClick={() => handlePageChange(index + 1)}
+                    className={`px-4 py-2 rounded-lg ${
+                      currentPage === index + 1
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-blue-600 hover:bg-blue-50'
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+                
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className={`px-4 py-2 rounded-lg ${
+                    currentPage === totalPages
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1433,4 +1087,4 @@ const DoctorFinder = () => {
   );
 };
 
-export default DoctorFinder; 
+export default DoctorFinder;
