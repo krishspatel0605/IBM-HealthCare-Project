@@ -4,12 +4,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.cache import cache
 from .models import Doctor
-from .serializers import DoctorSerializer
-from hospital.models import Hospital_Details
+from .serializers import DoctorSerializer, DoctorRegistrationSerializer
+from hospital.models import Hospital
 from django.db.models import Q, F, ExpressionWrapper, FloatField
 import re
 from django.shortcuts import render
 import logging
+from rest_framework.views import APIView
 
 # Import the recommender components
 from recommendation_system.doctor_recommender import DoctorRecommender
@@ -39,8 +40,6 @@ def recommend_nearest_doctors(request):
 
     # If latitude or longitude not provided, fetch first user with valid lat/lon
     if user_latitude is None or user_longitude is None:
-        # Removed fallback to User model filtering by latitude and longitude as these fields do not exist on User
-        # Instead, return error if location not provided
         return Response(
             {'error': 'User location not provided and no fallback available'},
             status=status.HTTP_400_BAD_REQUEST
@@ -54,74 +53,32 @@ def recommend_nearest_doctors(request):
             {'error': 'Invalid latitude or longitude values'},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    try:
-        recommender = get_recommender()
-        if recommender is None:
-            return Response(
-                {'error': 'Recommendation system not available'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
-        
-        nearest_doctors = recommender.recommend_nearest_doctors(
-            user_latitude=user_latitude,
-            user_longitude=user_longitude,
-            limit=limit
+
+    # Calculate distance for each doctor using hospital location
+    doctors = Doctor.objects.annotate(
+        distance=ExpressionWrapper(
+            (F('hospital__latitude') - user_latitude) ** 2 +
+            (F('hospital__longitude') - user_longitude) ** 2,
+            output_field=FloatField()
         )
-        
-        return Response({
-            'nearest_doctors': nearest_doctors,
-            'user_latitude': user_latitude,
-            'user_longitude': user_longitude,
-            'results_count': len(nearest_doctors)
-        })
-    except Exception as e:
-        logger.error(f"Error in nearest doctor recommendation: {str(e)}", exc_info=True)
-        return Response(
-            {'error': 'An error occurred while fetching nearest doctors'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    ).order_by('distance')[:limit]
+
+    # Serialize and return results
+    serializer = DoctorSerializer(doctors, many=True)
+    return Response({
+        'recommended_doctors': serializer.data
+    })
 
 def get_recommender():
     """Get or initialize the recommender model"""
     global recommender
-    
-    # If recommendation system is not available, return None
-    if not recommender_available:
-        logger.warning("Recommendation system is not available due to import errors")
-        return None
-    
     if recommender is None:
-        # Try to load existing model
         try:
-            model_path = get_model_path()
-            loaded_recommender = load_model(model_path)
-            
-            if loaded_recommender:
-                recommender = loaded_recommender
-            else:
-                # Create new model with default parameters
-                recommender = DoctorRecommender(n_estimators=100)
-            
-            try:
-                # Get all doctors from database
-                doctors = Doctor.objects.all()
-                doctors_data = DoctorSerializer(doctors, many=True).data
-                
-                # Preprocess and fit model
-                processed_data = batch_preprocess_doctors(doctors_data)
-                recommender.fit(processed_data)
-                
-                # Save the model
-                save_model(recommender, model_path)
-                
-            except Exception as e:
-                logger.error(f"Error training recommender: {str(e)}")
-                recommender = None
+            recommender = DoctorRecommender()
+            recommender.load(get_model_path())
         except Exception as e:
-            logger.error(f"Error initializing recommender: {str(e)}")
-            recommender = None
-    
+            logger.error(f"Error loading recommender model: {e}")
+            recommender_available = False
     return recommender
 
 @api_view(['GET'])
@@ -145,7 +102,7 @@ def get_doctors(request):
         doctors = Doctor.objects.all()
 
     doctor_list = list(doctors.values(
-        "id", "doctor_name", "specialization", "experience_years", 
+        "id", "name", "specialization", "experience_years", 
         "availability", "consultation_fee_inr", "rating", "patients_treated"
     ))
 
@@ -182,7 +139,7 @@ def doctor_details_view(request, id):
         
         doctor_data = {
             "id": doctor.id,
-            "doctor_name": doctor.doctor_name,
+            "name": doctor.name,
             "specialization": doctor.specialization,
             "experience_years": doctor.experience_years,
             "availability": doctor.availability,
@@ -197,7 +154,9 @@ def doctor_details_view(request, id):
             doctor_data["hospital"] = {
                 "id": doctor.hospital.id,
                 "name": doctor.hospital.name,
-                "location": doctor.hospital.location
+                "address": doctor.hospital.address,
+                "latitude": str(doctor.hospital.latitude),
+                "longitude": str(doctor.hospital.longitude)
             }
         
         return JsonResponse(doctor_data, safe=False)
@@ -215,62 +174,50 @@ def recommend_doctors(request):
     Recommend doctors based on query condition using ML model
     """
     query = request.GET.get('query', '').strip().lower()
-    specialization = request.GET.get('specialization', None)
-    user_latitude = request.GET.get('user_latitude')
-    user_longitude = request.GET.get('user_longitude')
-    page = int(request.GET.get('page', 1))
     limit = int(request.GET.get('limit', 10))
 
     if not query:
         return Response(
-            {'error': 'Please provide a search query'},
+            {'error': 'Query parameter is required'},
             status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Get recommender model
+    recommender = get_recommender()
+    if not recommender or not recommender_available:
+        return Response(
+            {'error': 'Recommender system not available'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
         )
 
     try:
-        # First get matching doctors from Doctor model
-        doctors = Doctor.objects.filter(
-            Q(doctor_name__icontains=query) |
-            Q(specialization__icontains=query) |
-            Q(conditions_treated__contains=query)
+        # Get doctors from database
+        doctors = Doctor.objects.all()
+        doctor_list = list(doctors.values())
+
+        # If no doctors found
+        if not doctor_list:
+            return Response({'recommended_doctors': []})
+
+        # Preprocess doctors data
+        processed_doctors = batch_preprocess_doctors(doctor_list)
+
+        # Get recommendations
+        recommended_indices = recommender.recommend_for_condition(
+            query, processed_doctors, limit
         )
 
-        # Combine and deduplicate results
-        combined_doctors = []
-        seen_mobile_numbers = set()
-
-        # Add doctors from Doctor model
-        for doctor in doctors:
-            if doctor.mobile_number not in seen_mobile_numbers:
-                seen_mobile_numbers.add(doctor.mobile_number)
-                doctor_data = {
-                    'id': doctor.id,
-                    'name': doctor.doctor_name,
-                    'specialization': doctor.specialization,
-                    'experience': doctor.experience_years,
-                    'mobile_number': doctor.mobile_number,
-                    'rating': doctor.rating,
-                    'availability': doctor.availability,
-                    'fee': doctor.consultation_fee_inr,
-                    'conditions_treated': doctor.conditions_treated,
-                    'treats_searched_condition': any(query in condition.lower() for condition in (doctor.conditions_treated or []))
-                }
-                combined_doctors.append(doctor_data)
-
-        results = {
-            'recommended_doctors': combined_doctors,
-            'query': query,
-            'results_count': len(combined_doctors),
-            'using_ml_recommendations': False,
-            'total_pages': (len(combined_doctors) + limit - 1) // limit
-        }
-
-        return Response(results)
+        # Map indices back to doctor data
+        recommended_doctors = [doctor_list[i] for i in recommended_indices]
+        
+        return Response({
+            'recommended_doctors': recommended_doctors
+        })
 
     except Exception as e:
-        logger.error(f"Error in doctor recommendation: {str(e)}", exc_info=True)
+        logger.error(f"Recommendation error: {str(e)}")
         return Response(
-            {'error': 'An error occurred while fetching recommendations'},
+            {'error': 'Failed to generate recommendations'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
@@ -313,7 +260,7 @@ def manage_doctor_profile(request, email=None):
         except Doctor.DoesNotExist:
             # If doctor doesn't exist but user is a doctor, create doctor profile
             doctor = Doctor.objects.create(
-                name=f"{user.first_name} {user.last_name}",
+                name=user.name,
                 mobile_number=user.mobile_number,
                 specialization="General"
             )
@@ -339,3 +286,19 @@ def manage_doctor_profile(request, email=None):
         return JsonResponse({"error": "Doctor not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+class DoctorRegistrationView(APIView):
+    def post(self, request):
+        serializer = DoctorRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            try:
+                doctor = serializer.save()
+                return Response({
+                    'message': 'Doctor registered successfully',
+                    'doctor_id': doctor.id
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                return Response({
+                    'error': str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

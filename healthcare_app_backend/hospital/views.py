@@ -4,8 +4,8 @@ from django.core.cache import cache
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Hospital_Details
 from .serializers import HospitalSerializer
+from Doctor.models import Doctor
 
 def get_hospitals(request):
     disease_query = request.GET.get('disease', '').strip().lower()
@@ -23,8 +23,7 @@ def get_hospitals(request):
     else:
         hospitals = Hospital.objects.all()
     
-
-    hospital_list = list(hospitals.values("name", "specialization", "location", "available_beds"))
+    hospital_list = list(hospitals.values("name", "specialization", "address", "available_beds"))
 
     # Store result in cache
     cache.set(cache_key, hospital_list, timeout=300)  # Cache for 5 minutes
@@ -48,33 +47,32 @@ def get_disease_options(request):
     cache.set(cache_key, unique_diseases, timeout=600)  # Cache for 10 minutes
     return JsonResponse(unique_diseases, safe=False)
 
-from django.http import JsonResponse
-from .models import Hospital_Details, Doctor
-
 def Hospital_Details_View(request, id):
     try:
-        hospital = Hospital_Details.objects.get(id=id)
+        hospital = Hospital.objects.get(id=id)
         doctors = Doctor.objects.filter(hospital=hospital)
 
         hospital_data = {
             "id": hospital.id,
             "name": hospital.name,
-            "location": hospital.location,
+            "address": hospital.address,
             "available_beds": hospital.available_beds,
+            "latitude": str(hospital.latitude),
+            "longitude": str(hospital.longitude),
             "doctors": [
                 {
                     "name": doctor.name,
                     "specialization": doctor.specialization,
                     "experience": doctor.experience,
-                    "availability": "10 AM - 5 PM",
-                    "fee": 500
+                    "availability": doctor.availability if hasattr(doctor, 'availability') else "10 AM - 5 PM",
+                    "fee": doctor.consultation_fee_inr if hasattr(doctor, 'consultation_fee_inr') else 500
                 }
                 for doctor in doctors
             ]
         }
         return JsonResponse(hospital_data, safe=False)
     
-    except Hospital_Details.DoesNotExist:
+    except Hospital.DoesNotExist:
         return JsonResponse({"error": "Hospital not found"}, status=404)
 
     except Exception as e:

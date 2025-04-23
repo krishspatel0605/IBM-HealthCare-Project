@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("Doctor", "0001_initial"),
+        # ("Doctor", "0001_initial"),  # Temporarily commented out to allow Doctor migrations creation
         ("auth", "0012_alter_user_first_name_max_length"),
     ]
 

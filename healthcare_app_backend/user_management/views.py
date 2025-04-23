@@ -31,10 +31,24 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from .models import ActivationToken  # Import ActivationToken model
 from .models import ActivationToken, User , PasswordResetToken
+from .utils import get_coordinates_from_address
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
+
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.contrib.auth.hashers import make_password
+from django.utils.timezone import now
+from django.utils.crypto import get_random_string
+from django.conf import settings
+from django.core.mail import send_mail
+from .models import ActivationToken, User
+from Doctor.serializers import DoctorRegistrationSerializer
+from hospital.models import Hospital
+from Doctor.models import Doctor
 
 class RegisterUserView(APIView):
     permission_classes = [AllowAny]
@@ -47,15 +61,11 @@ class RegisterUserView(APIView):
         role = request.data.get("role", "user")
         address = request.data.get("address")
         date_of_birth = request.data.get("date_of_birth")
-        latitude = request.data.get("latitude")
-        longitude = request.data.get("longitude")
 
-        # Doctor-specific fields
-        specialization = request.data.get("specialization", "")
-        experience = request.data.get("experience", 0)
-        availability = request.data.get("availability", "")
-        patients_treated = request.data.get("patientsTreated", 0)
-        hospital_name = request.data.get("hospital_name", "")
+        # Get coordinates from address
+        latitude, longitude = None, None
+        if address:
+            latitude, longitude = get_coordinates_from_address(address)
 
         if role not in ["user", "doctor"]:
             return Response({'error': 'Invalid role selected.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -80,13 +90,29 @@ class RegisterUserView(APIView):
         }
 
         if role == "doctor":
-            user_data.update({
-                'specialization': specialization,
-                'experience': experience,
-                'availability': availability,
-                'patients_treated': patients_treated,
-                'hospital_name': hospital_name,
-            })
+            # Extract doctor-specific data
+            doctor_data = {
+                'first_name': name.split()[0] if name else '',
+                'last_name': ' '.join(name.split()[1:]) if len(name.split()) > 1 else '',
+                'email': email,
+                'mobile_number': mobile_number,
+                'address': address,
+                'latitude': latitude,
+                'longitude': longitude,
+                'specialization': request.data.get("specialization", ""),
+                'experience_years': request.data.get("experience", 0),
+                'availability': request.data.get("availability", ""),
+                'consultation_fee_inr': request.data.get("consultation_fee_inr", 0),
+                'password': password,
+                'confirm_password': request.data.get("confirm_password", password),
+            }
+            # Validate doctor data using DoctorRegistrationSerializer
+            doctor_serializer = DoctorRegistrationSerializer(data=doctor_data)
+            if not doctor_serializer.is_valid():
+                return Response({'error': doctor_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Save doctor data in ActivationToken user_data for activation step
+            user_data.update(doctor_data)
 
         # Save user data in ActivationToken
         ActivationToken.objects.update_or_create(
@@ -186,17 +212,47 @@ class ActivationView(APIView):
                 'is_active': True,
             }
 
-            # Role-based extension
+            # Create User instance
+            user = User.objects.create(**base_fields)
+
+            # If doctor, create Doctor instance
             if role == 'doctor':
-                base_fields.update({
+                # Prepare doctor data
+                doctor_data = {
+                    'name': user_data.get('name'),
+                    'mobile_number': user_data.get('mobile_number'),
                     'specialization': user_data.get('specialization'),
                     'experience': user_data.get('experience'),
                     'availability': user_data.get('availability'),
                     'patients_treated': user_data.get('patients_treated'),
                     'hospital_name': user_data.get('hospital_name'),
-                })
+                    'consultation_fee_inr': user_data.get('consultation_fee_inr', 0),
+                }
 
-            user = User.objects.create(**base_fields)
+            # Handle hospital creation or retrieval
+            hospital_name = user_data.get('hospital_name')
+            hospital_address = user_data.get('address')
+            hospital_latitude = user_data.get('latitude')
+            hospital_longitude = user_data.get('longitude')
+
+            if not hospital_name:
+                return Response({'error': 'Hospital name is required for doctor activation.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            hospital, created = Hospital.objects.get_or_create(
+                name=hospital_name,
+                defaults={
+                    'address': hospital_address,
+                    'latitude': hospital_latitude,
+                    'longitude': hospital_longitude,
+                    'available_beds': 0,
+                }
+            )
+
+            doctor_data['hospital'] = hospital
+
+            # Create Doctor instance
+            Doctor.objects.create(**doctor_data)
+
             activation_entry.delete()
 
             return Response({

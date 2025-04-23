@@ -62,11 +62,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     longitude = models.CharField(max_length=50, null=True, blank=True)
 
     # Doctor-specific fields
-    specialization = models.CharField(max_length=100, null=True, blank=True)
-    experience = models.PositiveIntegerField(default=0, null=True, blank=True)
-    availability = models.TextField(null=True, blank=True)
-    patients_treated = models.PositiveIntegerField(default=0, null=True, blank=True)
-    hospital_name = models.CharField(max_length=255, null=True, blank=True)
+    # Removed doctor-specific fields to separate doctor data
+    # specialization = models.CharField(max_length=100, null=True, blank=True)
+    # experience = models.PositiveIntegerField(default=0, null=True, blank=True)
+    # availability = models.TextField(null=True, blank=True)
+    # patients_treated = models.PositiveIntegerField(default=0, null=True, blank=True)
+    # hospital_name = models.CharField(max_length=255, null=True, blank=True)
 
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)

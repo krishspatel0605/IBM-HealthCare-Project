@@ -19,13 +19,15 @@ const RegisterForm = () => {
     specialization: '',
     experience: 0,
     availability: '',
-    patientsTreated: 0,
+    consultation_fee_inr: 0,
+    patients_treated: 0,
+    rating: 0,
+    conditions_treated: '',
     hospital_name: '',
     address: '',
     date_of_birth: '',
     latitude: '',
     longitude: '',
-    doctorName: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -46,52 +48,34 @@ const RegisterForm = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    setErrors({ ...errors, [name]: '' });
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
 
-    if (name === 'password') {
-      setPasswordStrength(calculatePasswordStrength(value));
-    }
-    if (name === 'confirmPassword') {
-      setErrors((prevErrors) => ({
-        ...prevErrors,
-        confirm_password: value !== formData.password ? 'Passwords do not match.' : '',
-      }));
-    }
-
+    // Trigger address geocoding when address is changed
     if (name === 'address') {
-      // Automatically fetch latitude and longitude when address changes
+      // We don't need to fetch coordinates here anymore
+      // The backend will handle this
+    }
+
+    // Password strength calculation
+    if (name === 'password') {
       if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
       debounceTimeout.current = setTimeout(() => {
-        fetchCoordinates(value);
-      }, 1000);
+        setPasswordStrength(calculatePasswordStrength(value));
+      }, 300);
     }
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    setErrors((prevErrors) => ({
-      ...prevErrors,
-      [name]: '',
-    }));
   };
 
   const fetchCoordinates = async (address) => {
-    try {
-      const response = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${address}&key=YOUR_GOOGLE_API_KEY`);
-      const { lat, lng } = response.data.results[0]?.geometry.location || {};
-      if (lat && lng) {
-        setFormData((prev) => ({
-          ...prev,
-          latitude: lat,
-          longitude: lng,
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching coordinates:', error);
-    }
+    // We don't need to fetch coordinates in the frontend anymore
+    // The backend will handle this automatically when the address is provided
+    setFormData((prev) => ({
+      ...prev,
+      address
+    }));
   };
 
   const isFormValid = () => {
@@ -102,10 +86,16 @@ const RegisterForm = () => {
       formData.mobileNumber &&
       formData.role &&
       formData.address &&
-      formData.date_of_birth &&
+      (formData.role !== 'doctor' || (
+        formData.hospital_name && 
+        formData.specialization && 
+        formData.experience > 0 &&
+        formData.consultation_fee_inr > 0 &&
+        formData.conditions_treated
+      )) &&
       formData.password.length >= 6 &&
       formData.password === formData.confirmPassword &&
-      (formData.role !== 'doctor' || (formData.hospital_name && formData.specialization && formData.experience > 0))
+      (formData.role !== 'user' || formData.date_of_birth)
     );
   };
 
@@ -126,10 +116,12 @@ const RegisterForm = () => {
       if (!formData.hospital_name) validationErrors.hospital_name = 'Hospital name is required.';
       if (formData.experience <= 0) validationErrors.experience = 'Experience must be greater than 0 years.';
       if (!formData.availability) validationErrors.availability = 'Availability is required.';
+      if (formData.consultation_fee_inr <= 0) validationErrors.consultation_fee_inr = 'Consultation fee must be greater than 0.';
+      if (!formData.conditions_treated) validationErrors.conditions_treated = 'Conditions treated must be specified.';
     }
-
     if (!formData.address) validationErrors.address = 'Address is required.';
-    if (!formData.date_of_birth) validationErrors.date_of_birth = 'Date of birth is required.';
+    if (!formData.role) validationErrors.role = 'Role is required.';
+    if (formData.role === 'user' && !formData.date_of_birth) validationErrors.date_of_birth = 'Date of birth is required.';
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -144,15 +136,16 @@ const RegisterForm = () => {
       password: formData.password,
       confirm_password: formData.confirmPassword,
       address: formData.address,
-      date_of_birth: formData.date_of_birth,
       latitude: formData.latitude,
       longitude: formData.longitude,
       hospital_name: formData.hospital_name,
-      doctor_name: formData.doctorName,
       specialization: formData.specialization,
       experience: formData.experience,
       availability: formData.availability,
-      patients_treated: formData.patientsTreated,
+      consultation_fee_inr: formData.consultation_fee_inr,
+      patients_treated: formData.patients_treated,
+      rating: formData.rating,
+      conditions_treated: formData.conditions_treated
     };
 
     try {
@@ -288,18 +281,6 @@ const RegisterForm = () => {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-gray-700 mb-2 font-medium">Doctor Name</label>
-                    <input
-                      type="text"
-                      name="doctorName"
-                      value={formData.doctorName}
-                      onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg"
-                      placeholder="Dr. John Doe"
-                    />
-                  </div>
-
-                  <div>
                     <label className="block text-gray-700 mb-2 font-medium">Hospital Name</label>
                     <input
                       type="text"
@@ -311,9 +292,7 @@ const RegisterForm = () => {
                     />
                     {errors.hospital_name && <div className="text-red-500 text-sm">{errors.hospital_name}</div>}
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Specialization</label>
                     <input
@@ -326,7 +305,9 @@ const RegisterForm = () => {
                     />
                     {errors.specialization && <div className="text-red-500 text-sm">{errors.specialization}</div>}
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Years of Experience</label>
                     <input
@@ -340,19 +321,48 @@ const RegisterForm = () => {
                     />
                     {errors.experience && <div className="text-red-500 text-sm">{errors.experience}</div>}
                   </div>
+
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Consultation Fee (INR)</label>
+                    <input
+                      type="number"
+                      name="consultation_fee_inr"
+                      value={formData.consultation_fee_inr}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="500"
+                      min="1"
+                    />
+                    {errors.consultation_fee_inr && <div className="text-red-500 text-sm">{errors.consultation_fee_inr}</div>}
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-gray-700 mb-2 font-medium">Availability</label>
-                  <input
-                    type="text"
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg"
-                    placeholder="Mon-Fri, 9AM-1PM"
-                  />
-                  {errors.availability && <div className="text-red-500 text-sm">{errors.availability}</div>}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Availability</label>
+                    <input
+                      type="text"
+                      name="availability"
+                      value={formData.availability}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="Mon-Fri, 9AM-1PM"
+                    />
+                    {errors.availability && <div className="text-red-500 text-sm">{errors.availability}</div>}
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-700 mb-2 font-medium">Conditions Treated</label>
+                    <input
+                      type="text"
+                      name="conditions_treated"
+                      value={formData.conditions_treated}
+                      onChange={handleChange}
+                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      placeholder="Heart Disease, Diabetes"
+                    />
+                    {errors.conditions_treated && <div className="text-red-500 text-sm">{errors.conditions_treated}</div>}
+                  </div>
                 </div>
               </>
             )}
@@ -370,17 +380,19 @@ const RegisterForm = () => {
               {errors.address && <div className="text-red-500 text-sm">{errors.address}</div>}
             </div>
 
-            <div>
-              <label className="block text-gray-700 mb-2 font-medium">Date of Birth</label>
-              <input
-                type="date"
-                name="date_of_birth"
-                value={formData.date_of_birth}
-                onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg"
-              />
-              {errors.date_of_birth && <div className="text-red-500 text-sm">{errors.date_of_birth}</div>}
-            </div>
+            {formData.role === 'user' && (
+              <div>
+                <label className="block text-gray-700 mb-2 font-medium">Date of Birth</label>
+                <input
+                  type="date"
+                  name="date_of_birth"
+                  value={formData.date_of_birth}
+                  onChange={handleChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                />
+                {errors.date_of_birth && <div className="text-red-500 text-sm">{errors.date_of_birth}</div>}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
