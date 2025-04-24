@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt } from 'react-icons/fa';
 import { MdLocalHospital, MdAccountCircle } from 'react-icons/md';
+import { toast } from 'react-toastify';
+import _ from 'lodash';
 
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
@@ -30,11 +32,27 @@ const axiosInstance = axios.create({
   }
 });
 
-// Add retry logic with exponential backoff
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+    console.log('Axios request interceptor - token:', token);
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+      console.log('Authorization header set:', config.headers['Authorization']);
+    } else {
+      console.log('No auth token found, Authorization header not set');
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const { config } = error;
+    const { config, response } = error;
     config.retryCount = config.retryCount || 0;
     
     if (error.code === 'ECONNABORTED' && config.retryCount < 2) {
@@ -48,6 +66,16 @@ axiosInstance.interceptors.response.use(
     if (error.code === 'ECONNABORTED') {
       throw new Error('The request took too long to respond after multiple retries. Please try again later.');
     }
+
+    // Handle 401 Unauthorized globally
+    if (response && response.status === 401) {
+      console.warn('Received 401 Unauthorized response. Clearing auth token and redirecting to login.');
+      localStorage.removeItem('auth_token');
+      sessionStorage.removeItem('auth_token');
+      window.location.href = '/login'; // Redirect to login page
+      return Promise.reject(error);
+    }
+
     return Promise.reject(error);
   }
 );
@@ -192,28 +220,37 @@ const DoctorFinder = () => {
   const [savedDoctors, setSavedDoctors] = useState([]);
   const [recommendedConditions, setRecommendedConditions] = useState([]);
   
-  const location = useLocation();
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingReason, setBookingReason] = useState('');
+  const [isBooking, setIsBooking] = useState(false);
   const navigate = useNavigate();
   
-  // Check user login status on component mount
+  const location = useLocation();
+  
+  // Check user login status on component mount and on location change for debugging
   useEffect(() => {
-    // Check if user is logged in by looking for auth token in localStorage or sessionStorage
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    if (token) {
-      setIsLoggedIn(true);
-      fetchUserData(token);
-      fetchUserRecentSearches(token);
-      fetchUserSavedDoctors(token);
-      fetchRecommendedConditions(token);
-    }
-  }, []);
+    const checkLoginStatus = () => {
+      const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+      console.log('Checking login status on DoctorFinder page load. Token:', token);
+      if (token) {
+        setIsLoggedIn(true);
+        fetchUserData(token);
+        fetchUserRecentSearches(token);
+        fetchUserSavedDoctors(token);
+        fetchRecommendedConditions(token);
+      } else {
+        setIsLoggedIn(false);
+      }
+    };
+    checkLoginStatus();
+  }, [location]);
   
   // Fetch user data
-  const fetchUserData = async (token) => {
+  const fetchUserData = async () => {
     try {
-      const response = await axiosInstance.get(`/api/user-profile/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axiosInstance.get(`/user-profile/`);
       setUserData(response.data);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -221,11 +258,9 @@ const DoctorFinder = () => {
   };
   
   // Fetch user's recent searches
-  const fetchUserRecentSearches = async (token) => {
+  const fetchUserRecentSearches = async () => {
     try {
-      const response = await axiosInstance.get(`/api/user-searches/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axiosInstance.get(`/user-searches/`);
       setRecentSearches(response.data.searches || []);
     } catch (error) {
       console.error('Error fetching recent searches:', error);
@@ -235,11 +270,9 @@ const DoctorFinder = () => {
   };
   
   // Fetch user's saved doctors
-  const fetchUserSavedDoctors = async (token) => {
+  const fetchUserSavedDoctors = async () => {
     try {
-      const response = await axiosInstance.get(`/api/saved-doctors/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axiosInstance.get(`/saved-doctors/`);
       setSavedDoctors(response.data.doctors || []);
     } catch (error) {
       console.error('Error fetching saved doctors:', error);
@@ -249,11 +282,9 @@ const DoctorFinder = () => {
   };
   
   // Fetch recommended conditions based on user profile
-  const fetchRecommendedConditions = async (token) => {
+  const fetchRecommendedConditions = async () => {
     try {
-      const response = await axiosInstance.get(`/api/recommended-conditions/`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await axiosInstance.get(`/recommended-conditions/`);
       setRecommendedConditions(response.data.conditions || []);
     } catch (error) {
       console.error('Error fetching recommended conditions:', error);
@@ -266,14 +297,9 @@ const DoctorFinder = () => {
   const saveSearchToHistory = async (query) => {
     if (!isLoggedIn || !query.trim()) return;
     
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    if (!token) return;
-    
     try {
-      await axiosInstance.post(`/api/save-search/`, {
+      await axiosInstance.post(`/save-search/`, {
         query: query
-      }, {
-        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       // Update recent searches list
@@ -293,14 +319,9 @@ const DoctorFinder = () => {
       return;
     }
     
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    if (!token) return;
-    
     try {
-      await axiosInstance.post(`/api/save-doctor/`, {
+      await axiosInstance.post(`/save-doctor/`, {
         doctor_id: doctorId
-      }, {
-        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       // Update saved doctors UI
@@ -429,62 +450,96 @@ const DoctorFinder = () => {
     }
   }, [searchQuery]);
 
-  const performSearch = async (searchTerm) => {
-    if (!searchTerm.trim()) return;
+  const memoizedFetchDoctors = useMemo(() => {
+    return _.debounce(async (searchTerm) => {
+      if (!searchTerm?.trim()) return;
+      setLoading(true);
+      setError('');
+      setDbStatus('Searching for doctors...');
     
-    setLoading(true);
-    setError('');
-    setDbStatus('Searching for doctors...');
-  
-    try {
-      // Include user location and pagination in the API request
-      let apiUrl = `/recommend-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10`;
-      
-      if (userLatitude !== null && userLongitude !== null) {
-        apiUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
-      }
-
-      const response = await axiosInstance.get(apiUrl);
-      
-      if (response.data && response.data.recommended_doctors) {
-        const doctors = response.data.recommended_doctors.map(doctor => ({
-          ...doctor,
-          treats_searched_condition: 
-            (doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-            (doctor.conditions_treated && Array.isArray(doctor.conditions_treated) && 
-             doctor.conditions_treated.some(condition => 
-               condition.toLowerCase().includes(searchTerm.toLowerCase())
-             ))
-        }));
-
-        setDoctors(doctors);
-        setTotalPages(response.data.total_pages || 1);
-        setUsingDummyData(false);
-        setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
-
-        // Paginate results
-        const indexOfLastDoctor = currentPage * doctorsPerPage;
-        const indexOfFirstDoctor = indexOfLastDoctor - doctorsPerPage;
-        setPaginatedDoctors(doctors.slice(indexOfFirstDoctor, indexOfLastDoctor));
-
-        // Save search to history if successful and user is logged in
-        if (isLoggedIn) {
-          saveSearchToHistory(searchTerm);
+      try {
+        let apiUrl = `/recommend-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10`;
+        
+        if (userLatitude !== null && userLongitude !== null) {
+          apiUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
         }
-      } else {
-        setDoctors([]);
-        setPaginatedDoctors([]);
-        setError(`No doctors found for "${searchTerm}"`);
-        setTotalPages(1);
+
+        const cacheKey = `doctors_search_${searchTerm}_${currentPage}`;
+        const cachedResult = localStorage.getItem(cacheKey);
+        
+        if (cachedResult) {
+          const { data, timestamp } = JSON.parse(cachedResult);
+          // Use cache if less than 5 minutes old
+          if (Date.now() - timestamp < 5 * 60 * 1000) {
+            const doctors = data.map(doctor => ({
+              ...doctor,
+              treats_searched_condition: 
+                (doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+                (doctor.conditions_treated && Array.isArray(doctor.conditions_treated) && 
+                 doctor.conditions_treated.some(condition => 
+                   condition.toLowerCase().includes(searchTerm.toLowerCase())
+                 ))
+            }));
+
+            setDoctors(doctors);
+            setTotalPages(Math.ceil(doctors.length / doctorsPerPage));
+            setUsingDummyData(false);
+            setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
+            return;
+          }
+        }
+
+        const response = await axiosInstance.get(apiUrl);
+        
+        if (response.data && response.data.recommended_doctors) {
+          const doctors = response.data.recommended_doctors.map(doctor => ({
+            ...doctor,
+            treats_searched_condition: 
+              (doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+              (doctor.conditions_treated && Array.isArray(doctor.conditions_treated) && 
+               doctor.conditions_treated.some(condition => 
+                 condition.toLowerCase().includes(searchTerm.toLowerCase())
+               ))
+          }));
+
+          setDoctors(doctors);
+          setTotalPages(Math.ceil(doctors.length / doctorsPerPage));
+          setUsingDummyData(false);
+          setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
+
+          // Cache the results
+          localStorage.setItem(cacheKey, JSON.stringify({
+            data: doctors,
+            timestamp: Date.now()
+          }));
+        } else {
+          setDoctors([]);
+          setTotalPages(1);
+          setError(`No doctors found for "${searchTerm}"`);
+        }
+      } catch (error) {
+        handleSearchError(error, searchTerm);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      handleSearchError(error, searchTerm);
-    } finally {
-      setLoading(false);
-    }
+    }, 1000);
+  }, [currentPage, doctorsPerPage, userLatitude, userLongitude]);
+
+  // Clean up function
+  useEffect(() => {
+    return () => {
+      if (memoizedFetchDoctors.cancel) {
+        memoizedFetchDoctors.cancel();
+      }
+    };
+  }, [memoizedFetchDoctors]);
+
+  // Update performSearch to use memoized function
+  const performSearch = (searchTerm) => {
+    memoizedFetchDoctors(searchTerm);
   };
 
-  const handleSearchError = (error, query) => {
+  const handleSearchError = (error, searchTerm) => {
     console.error("Error searching doctors:", error);
     setError(`An error occurred while searching for doctors. Please try again later.`);
     setDoctors([]);
@@ -505,6 +560,15 @@ const DoctorFinder = () => {
     } else {
       setDbStatus('An unexpected error occurred.');
     }
+
+    // Set to dummy data if database error
+    setDoctors(DUMMY_DOCTORS.filter(doc => 
+      doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.conditions_treated.some(condition => 
+        condition.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    ));
+    setUsingDummyData(true);
   };
 
   const handleSearch = (e) => {
@@ -569,6 +633,45 @@ const DoctorFinder = () => {
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBookAppointment = async (doctor) => {
+    if (!localStorage.getItem('auth_token')) {
+      toast.error('Please login to book an appointment');
+      navigate('/login');
+      return;
+    }
+    setSelectedDoctor(doctor);
+    setShowBookingModal(true);
+  };
+
+  const submitAppointment = async (e) => {
+    e.preventDefault();
+    if (!bookingDate) {
+      toast.error('Please select an appointment date');
+      return;
+    }
+
+    try {
+      setIsBooking(true);
+      const response = await axiosInstance.post('/book-appointment/', {
+        doctor_id: selectedDoctor.id,
+        appointment_date: new Date(bookingDate).toISOString(),
+        reason: bookingReason || ''
+      });
+
+      if (response.data) {
+        toast.success('Appointment booked successfully!');
+        setShowBookingModal(false);
+        setSelectedDoctor(null);
+        setBookingDate('');
+        setBookingReason('');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to book appointment');
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   return (
@@ -1066,10 +1169,11 @@ const DoctorFinder = () => {
                     
                     {/* Book Appoinment button */}
                     <button 
+                      onClick={() => handleBookAppointment(doctor)}
                       className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                     >
                       <FaPhoneAlt />
-                      Book Appoinment
+                      Book Appointment
                     </button>
                   </div>
                 </div>
@@ -1121,6 +1225,64 @@ const DoctorFinder = () => {
           </>
         )}
       </div>
+
+      {/* Booking Modal */}
+      {showBookingModal && selectedDoctor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Book Appointment with {selectedDoctor.name}</h2>
+            <form onSubmit={submitAppointment}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Appointment Date & Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Reason for Visit (Optional)
+                  </label>
+                  <textarea
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={bookingReason}
+                    onChange={(e) => setBookingReason(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBookingModal(false);
+                      setSelectedDoctor(null);
+                      setBookingDate('');
+                      setBookingReason('');
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isBooking}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isBooking ? 'Booking...' : 'Confirm Booking'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
+import pickle
+
 class DoctorRecommender:
     def __init__(self, n_estimators: int = 100):
         self.n_estimators = n_estimators
@@ -233,3 +235,36 @@ class DoctorRecommender:
         except Exception as e:
             logger.error("Failed to compute feature importances: %s", str(e), exc_info=True)
             return {}
+
+    def save(self, filepath: str):
+        """Save the model and related components to a file."""
+        try:
+            with open(filepath, 'wb') as f:
+                pickle.dump({
+                    'classifier': self.classifier,
+                    'feature_transformer': self.feature_transformer,
+                    'mlb': self.mlb,
+                    'doctors_df': self.doctors_df,
+                    'numeric_features': self.numeric_features,
+                    'categorical_features': self.categorical_features,
+                    'n_estimators': self.n_estimators
+                }, f)
+            logger.info(f"Model saved successfully to {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save model to {filepath}: {e}")
+
+    def load(self, filepath: str):
+        """Load the model and related components from a file."""
+        try:
+            with open(filepath, 'rb') as f:
+                data = pickle.load(f)
+                self.classifier = data['classifier']
+                self.feature_transformer = data['feature_transformer']
+                self.mlb = data['mlb']
+                self.doctors_df = data['doctors_df']
+                self.numeric_features = data.get('numeric_features', ['experience', 'rating', 'patients_treated', 'fee'])
+                self.categorical_features = data.get('categorical_features', ['specialization'])
+                self.n_estimators = data.get('n_estimators', 100)
+            logger.info(f"Model loaded successfully from {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to load model from {filepath}: {e}")

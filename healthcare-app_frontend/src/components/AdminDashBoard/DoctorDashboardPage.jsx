@@ -4,6 +4,7 @@ import { FaUserMd } from 'react-icons/fa';
 import { LogOut, User as UserIcon, Settings, Bell, LayoutDashboard, Calendar, Users, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axiosInstance from '../../utils/axiosInstance';
+import { toast } from 'react-toastify';
 
 // Import Dashboard Components
 import { StatCard } from './StatCard';
@@ -21,12 +22,14 @@ export default function DoctorDashboardPage() {
     upcomingAppointments: 0
   });
 
-  // Replace with actual logged-in doctor data
-  const doctor = { name: "Dr. Evelyn Reed", avatarUrl: null };
-
   useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
     fetchAppointments();
-  }, []);
+  }, [navigate]);
 
   const fetchAppointments = async () => {
     try {
@@ -52,7 +55,13 @@ export default function DoctorDashboardPage() {
         });
       }
     } catch (err) {
-      setError(err.message);
+      if (err.response && err.response.status === 404) {
+        setError('No appointments found for the logged-in doctor.');
+        toast.error('No appointments found for the logged-in doctor.');
+      } else {
+        setError('Failed to fetch appointments. Please try again later.');
+        toast.error('Failed to load appointments');
+      }
     } finally {
       setLoading(false);
     }
@@ -71,7 +80,14 @@ export default function DoctorDashboardPage() {
       value: stats.todayAppointments, 
       icon: <Calendar />, 
       color: "blue", 
-      description: `${stats.upcomingAppointments} Upcoming` 
+      description: "Scheduled for today" 
+    },
+    { 
+      title: "Upcoming Appointments", 
+      value: stats.upcomingAppointments, 
+      icon: <MessageSquare />, 
+      color: "yellow", 
+      description: "Next 7 days" 
     },
     { 
       title: "Total Appointments", 
@@ -84,7 +100,6 @@ export default function DoctorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
@@ -100,22 +115,22 @@ export default function DoctorDashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {quickStats.map((stat, index) => (
             <StatCard key={index} {...stat} />
           ))}
         </div>
 
-        {/* Appointments Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Appointments</h2>
           {loading ? (
-            <p>Loading appointments...</p>
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
           ) : error ? (
-            <p className="text-red-500">{error}</p>
+            <div className="text-red-500 p-4 bg-red-50 rounded-lg">{error}</div>
           ) : appointments.length === 0 ? (
-            <p>No appointments scheduled</p>
+            <p className="text-gray-500 text-center py-8">No appointments scheduled</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -130,11 +145,14 @@ export default function DoctorDashboardPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Reason
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {appointments.map((appointment) => (
-                    <tr key={appointment.id}>
+                    <tr key={appointment.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
                           {appointment.user_name}
@@ -149,6 +167,15 @@ export default function DoctorDashboardPage() {
                         <div className="text-sm text-gray-900">
                           {appointment.reason || 'No reason provided'}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          new Date(appointment.appointment_date) > new Date()
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {new Date(appointment.appointment_date) > new Date() ? 'Upcoming' : 'Past'}
+                        </span>
                       </td>
                     </tr>
                   ))}

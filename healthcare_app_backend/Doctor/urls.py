@@ -10,7 +10,8 @@ from .views import (
     DoctorRegistrationView,
     book_appointment,
     doctor_appointments,
-    user_appointments
+    user_appointments,
+    check_appointment_conflict
 )
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path('book-appointment/', book_appointment, name='book-appointment'),
     path('doctor-appointments/', doctor_appointments, name='doctor-appointments'),
     path('user-appointments/', user_appointments, name='user-appointments'),
+    path('check-appointment-conflict/', check_appointment_conflict, name='check-appointment-conflict'),
 ]

@@ -229,11 +229,11 @@ RECAPTCHA_SECRET_KEY = '6LftjRcrAAAAAMzzz5Mj2AMpGmHhYwUoswKQlvv2'
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-healthcare',
-        'TIMEOUT': 300,  # 5 minutes
+        'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes default timeout
         'OPTIONS': {
-            'MAX_ENTRIES': 1000,
-            'CULL_FREQUENCY': 3,  # 1/3 of entries are culled when max is reached
+            'MAX_ENTRIES': 1000,  # Maximum number of entries in cache
+            'CULL_FREQUENCY': 3,  # Fraction of entries to cull when max is reached
         }
     }
 }

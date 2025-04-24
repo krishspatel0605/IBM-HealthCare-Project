@@ -18,7 +18,7 @@ const getApiBaseUrl = () => {
 
 const axiosInstance = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 30000,
+  timeout: 30000, // 30 second timeout
   headers: {
     'Content-Type': 'application/json'
   }
@@ -38,12 +38,13 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Add response interceptor to handle token refresh
+// Add response interceptor for retries and error handling
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
+    // Handle token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
@@ -63,11 +64,37 @@ axiosInstance.interceptors.response.use(
           return axiosInstance(originalRequest);
         }
       } catch (err) {
-        // If refresh token fails, redirect to login
         localStorage.removeItem('auth_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/login';
       }
+    }
+
+    // Handle timeouts with retries
+    if (error.code === 'ECONNABORTED' && !originalRequest._retry) {
+      originalRequest._retry = true;
+      // Exponential backoff: wait 2s before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('Request timed out, retrying...');
+      return axiosInstance(originalRequest);
+    }
+
+    // Handle network errors with alternative URLs
+    if (error.message === 'Network Error' && !originalRequest._urlRetry) {
+      originalRequest._urlRetry = true;
+      const currentUrl = localStorage.getItem('api_base_url');
+      const possibleUrls = [
+        'http://localhost:8000/api',
+        'http://127.0.0.1:8000/api',
+        window.location.origin + '/api'
+      ];
+      
+      const currentIndex = possibleUrls.indexOf(currentUrl);
+      const nextUrl = possibleUrls[(currentIndex + 1) % possibleUrls.length];
+      
+      localStorage.setItem('api_base_url', nextUrl);
+      originalRequest.baseURL = nextUrl;
+      return axiosInstance(originalRequest);
     }
 
     return Promise.reject(error);

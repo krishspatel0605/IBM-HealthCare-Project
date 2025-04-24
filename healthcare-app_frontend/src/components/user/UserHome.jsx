@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextField } from '@mui/material';
 import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus } from 'react-icons/fa';
@@ -9,6 +9,7 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 import { toast } from 'react-hot-toast';
 import axiosInstance from '../../utils/axiosInstance';
+import _ from 'lodash';
 
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
@@ -169,14 +170,15 @@ export default function UserHome() {
     }
   };
 
-  useEffect(() => {
-    const fetchDoctors = async () => {
+  const memoizedFetchDoctors = useMemo(() => {
+    return _.debounce(async () => {
       try {
         const response = await axiosInstance.get(`/list-all-doctors/?limit=10`);
         if (response.data && response.data.doctors) {
           const doctorsData = response.data.doctors;
           setDoctors(doctorsData);
           setFilteredDoctors(doctorsData);
+          localStorage.setItem('cached_doctors', JSON.stringify({ data: doctorsData, timestamp: Date.now() }));
         } else {
           throw new Error("Invalid response format");
         }
@@ -185,39 +187,100 @@ export default function UserHome() {
         setError("Could not load doctors. Please try again later.");
       }
       setLoading(false);
-    };
-    // const fetchAppointments = async () => {
-    //   try {
-    //     // Use the actual appointments API endpoint
-    //     const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    //     const response = await axios.get(`${API_BASE_URL}/user-appointments/`, {
-    //       headers: {
-    //         Authorization: `Bearer ${token}`,
-    //       },
-    //     });
-    //     if (response.data && response.data.appointments) {
-    //         setUpcomingAppointments(response.data.appointments);
-    //     } else {
-    //         // If no appointments or invalid format, set to empty array
-    //         setUpcomingAppointments([]);
-    //     }
-    //   } catch (err) {
-    //     console.error("Failed to fetch appointments:", err);
-    //     setUpcomingAppointments([]);
-    //   }
-    // };
+    }, 1000); // 1 second debounce
+  }, []);
 
-    fetchDoctors();
-    fetchAppointments();
+  const memoizedFetchAppointments = useMemo(() => {
+    return _.debounce(async () => {
+      try {
+        const response = await axiosInstance.get('/user-appointments/');
+        if (response.data) {
+          setUpcomingAppointments(response.data);
+          localStorage.setItem('cached_appointments', JSON.stringify({ data: response.data, timestamp: Date.now() }));
+        } else {
+          setUpcomingAppointments([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch appointments:", err);
+        setUpcomingAppointments([]);
+      }
+    }, 1000); // 1 second debounce
+  }, []);
+
+  useEffect(() => {
+    // Try to load from cache first
+    const cachedDoctors = localStorage.getItem('cached_doctors');
+    const cachedAppointments = localStorage.getItem('cached_appointments');
     
-    // Check for query parameters in the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const queryFromURL = urlParams.get('query');
-    if (queryFromURL) {
-      setSearchQuery(queryFromURL);
-      performSearch(queryFromURL);
-    }
-  }, [performSearch]);
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // Load doctors
+        if (cachedDoctors) {
+          const { data, timestamp } = JSON.parse(cachedDoctors);
+          // Use cache if less than 2 minutes old
+          if (Date.now() - timestamp < 2 * 60 * 1000) {
+            setDoctors(data);
+            setFilteredDoctors(data);
+          } else {
+            const response = await axiosInstance.get('/list-all-doctors/?limit=10');
+            if (response.data?.doctors) {
+              setDoctors(response.data.doctors);
+              setFilteredDoctors(response.data.doctors);
+              localStorage.setItem('cached_doctors', JSON.stringify({
+                data: response.data.doctors,
+                timestamp: Date.now()
+              }));
+            }
+          }
+        } else {
+          const response = await axiosInstance.get('/list-all-doctors/?limit=10');
+          if (response.data?.doctors) {
+            setDoctors(response.data.doctors);
+            setFilteredDoctors(response.data.doctors);
+            localStorage.setItem('cached_doctors', JSON.stringify({
+              data: response.data.doctors,
+              timestamp: Date.now()
+            }));
+          }
+        }
+
+        // Load appointments
+        if (cachedAppointments) {
+          const { data, timestamp } = JSON.parse(cachedAppointments);
+          // Use cache if less than 1 minute old
+          if (Date.now() - timestamp < 60 * 1000) {
+            setUpcomingAppointments(data);
+          } else {
+            const response = await axiosInstance.get('/user-appointments/');
+            if (response.data) {
+              setUpcomingAppointments(response.data);
+              localStorage.setItem('cached_appointments', JSON.stringify({
+                data: response.data,
+                timestamp: Date.now()
+              }));
+            }
+          }
+        } else {
+          const response = await axiosInstance.get('/user-appointments/');
+          if (response.data) {
+            setUpcomingAppointments(response.data);
+            localStorage.setItem('cached_appointments', JSON.stringify({
+              data: response.data,
+              timestamp: Date.now()
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load data:", err);
+        setError("Could not load data. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const handleSearch = (e) => {
     if (searchQuery.trim()) {
@@ -279,7 +342,7 @@ export default function UserHome() {
       setIsBooking(true);
       const response = await axiosInstance.post('/book-appointment/', {
         doctor_id: selectedDoctor.id,
-        appointment_date: bookingDate,
+        appointment_date: new Date(bookingDate).toISOString(),
         reason: bookingReason || ''
       });
 
@@ -299,11 +362,37 @@ export default function UserHome() {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-gray-600">Loading your healthcare dashboard...</p>
+      </div>
+    );
   }
 
   if (error && !searchPerformed) {
-    return <div className="min-h-screen flex items-center justify-center text-red-600">Error: {error}</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md max-w-md">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">Error: {error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -564,12 +653,6 @@ export default function UserHome() {
                       )}
                       
                       {/* Contact button */}
-                      <button 
-                        className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <FaPhoneAlt />
-                        Contact
-                      </button>
                       <button
                         onClick={() => handleBookAppointment(doctor.id)}
                         className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
