@@ -2,11 +2,21 @@ from rest_framework import serializers
 from .models import Doctor
 from hospital.models import Hospital
 from django.core.validators import RegexValidator
+from user_management.models import Appointment
 
 class DoctorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
         fields = '__all__'
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    doctor_name = serializers.CharField(source='doctor.name', read_only=True)
+    user_name = serializers.CharField(source='user.name', read_only=True)
+    
+    class Meta:
+        model = Appointment
+        fields = ['id', 'doctor', 'doctor_name', 'user', 'user_name', 'appointment_date', 'reason', 'created_at']
+        read_only_fields = ['created_at']
 
 class DoctorRegistrationSerializer(serializers.Serializer):
     # Personal Information

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { TextField } from '@mui/material';
 import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus } from 'react-icons/fa';
 import { Calendar, Clock } from 'lucide-react';
@@ -8,6 +7,8 @@ import { motion } from 'framer-motion';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
 import 'swiper/css/pagination';
+import { toast } from 'react-hot-toast';
+import axiosInstance from '../../utils/axiosInstance';
 
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
@@ -26,14 +27,6 @@ const getApiBaseUrl = () => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
-
-const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // Increased to 30 seconds
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
 
 // Add retry logic with exponential backoff
 axiosInstance.interceptors.response.use(
@@ -95,7 +88,26 @@ export default function UserHome() {
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingReason, setBookingReason] = useState('');
+  const [isBooking, setIsBooking] = useState(false);
+
+  const fetchAppointments = async () => {
+    try {
+      const response = await axiosInstance.get('/user-appointments/');
+      if (response.data && response.data.appointments) {
+        setUpcomingAppointments(response.data.appointments);
+      } else {
+        // If no appointments or invalid format, set to empty array
+        setUpcomingAppointments([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch appointments:", err);
+      setUpcomingAppointments([]);
+    }
+  };
 
   useEffect(() => {
     const authToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
@@ -196,7 +208,7 @@ export default function UserHome() {
     // };
 
     fetchDoctors();
-    // fetchAppointments();
+    fetchAppointments();
     
     // Check for query parameters in the URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -244,6 +256,47 @@ export default function UserHome() {
     "Stay hydrated by drinking at least 8 glasses of water daily",
     "Get 7-9 hours of quality sleep every night for better overall health"
   ];
+
+  const handleBookAppointment = async (doctorId) => {
+    if (!localStorage.getItem('auth_token')) {
+      toast.error('Please login to book an appointment');
+      navigate('/login');
+      return;
+    }
+    const doctor = doctors.find(d => d.id === doctorId);
+    setSelectedDoctor(doctor);
+    setShowBookingModal(true);
+  };
+
+  const submitAppointment = async (e) => {
+    e.preventDefault();
+    if (!bookingDate) {
+      toast.error('Please select an appointment date');
+      return;
+    }
+
+    try {
+      setIsBooking(true);
+      const response = await axiosInstance.post('/book-appointment/', {
+        doctor_id: selectedDoctor.id,
+        appointment_date: bookingDate,
+        reason: bookingReason || ''
+      });
+
+      if (response.data) {
+        toast.success('Appointment booked successfully!');
+        setShowBookingModal(false);
+        setSelectedDoctor(null);
+        setBookingDate('');
+        setBookingReason('');
+        fetchAppointments(); // Refresh the appointments list
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to book appointment');
+    } finally {
+      setIsBooking(false);
+    }
+  };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
@@ -517,6 +570,12 @@ export default function UserHome() {
                         <FaPhoneAlt />
                         Contact
                       </button>
+                      <button
+                        onClick={() => handleBookAppointment(doctor.id)}
+                        className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Book Appointment
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -700,6 +759,12 @@ export default function UserHome() {
                         <FaPhoneAlt />
                         Contact
                       </button>
+                      <button
+                        onClick={() => handleBookAppointment(doctor.id)}
+                        className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Book Appointment
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -708,6 +773,60 @@ export default function UserHome() {
           </div>
         )}
       </main>
+
+      {/* Booking Modal */}
+      {showBookingModal && selectedDoctor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Book Appointment with {selectedDoctor.name}</h2>
+            <form onSubmit={submitAppointment}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Appointment Date & Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={bookingDate}
+                    onChange={(e) => setBookingDate(e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Reason for Visit (Optional)
+                  </label>
+                  <textarea
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    rows="3"
+                    value={bookingReason}
+                    onChange={(e) => setBookingReason(e.target.value)}
+                    placeholder="Describe your symptoms or reason for visit"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowBookingModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isBooking}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isBooking ? 'Booking...' : 'Confirm Booking'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Health Tips Carousel - only show when not in search mode */}
       {!searchPerformed && (

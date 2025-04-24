@@ -7,7 +7,10 @@ from .views import (
     recommend_nearest_doctors,
     manage_doctor_profile,
     list_all_doctors,
-    DoctorRegistrationView
+    DoctorRegistrationView,
+    book_appointment,
+    doctor_appointments,
+    user_appointments
 )
 
 urlpatterns = [
@@ -18,7 +21,9 @@ urlpatterns = [
     path('doctor-profile/', manage_doctor_profile, name='doctor-profile-no-email'),
     path('list-all-doctors/', list_all_doctors, name='list-all-doctors'),
     path('recommend-doctors/', recommend_doctors, name='recommend-doctors'),
-    path('knn-recommend/', recommend_doctors, name='knn-recommend'),
     path('recommend-nearest-doctors/', recommend_nearest_doctors, name='recommend-nearest-doctors'),
     path('register/', DoctorRegistrationView.as_view(), name='doctor-registration'),
+    path('book-appointment/', book_appointment, name='book-appointment'),
+    path('doctor-appointments/', doctor_appointments, name='doctor-appointments'),
+    path('user-appointments/', user_appointments, name='user-appointments'),
 ]
