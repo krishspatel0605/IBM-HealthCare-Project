@@ -12,55 +12,62 @@ import ResetPassword from './components/ResetPassword';
 import DoctorDashboardPage from './components/AdminDashBoard/DoctorDashboardPage';
 import About from './components/About';
 import DoctorFinder from './components/DoctorFinder';
+import Contact from './components/Contact';
 
 function App() {
+  // Effect to handle initial auth check
+  React.useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      try {
+        const decodedToken = JSON.parse(atob(token.split('.')[1]));
+        const currentTime = Date.now() / 1000;
+        
+        if (decodedToken.exp < currentTime) {
+          // Token is expired, clear all auth data
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user_role');
+          localStorage.removeItem('cached_doctors');
+          localStorage.removeItem('cached_appointments');
+          window.dispatchEvent(new Event('storage'));
+        }
+      } catch (error) {
+        // Invalid token format, clear auth data
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('cached_doctors');
+        localStorage.removeItem('cached_appointments');
+        window.dispatchEvent(new Event('storage'));
+      }
+    }
+  }, []);
+
   return (
     <Router>
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
         
         {/* Auth Routes - Redirect if already authenticated */}
-        <Route 
-          path="/login" 
-          element={
-            <PublicRoute>
-              <LoginForm />
-            </PublicRoute>
-          } 
-        />
-        <Route 
-          path="/register" 
-          element={
-            <PublicRoute>
-              <RegisterForm />
-            </PublicRoute>
-          } 
-        />
+        <Route path="/login" element={<PublicRoute><LoginForm /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><RegisterForm /></PublicRoute>} />
         <Route path="/verify-login-otp" element={<VerifyLoginOTP />} />
         <Route path="/activate" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         
-        {/* Doctor Protected Routes */}
+        {/* Protected Routes */}
         <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
-          <Route path="/dashboard" element={<DoctorDashboardPage />} />
+          <Route path="/dashboard/*" element={<DoctorDashboardPage />} />
         </Route>
-
-        {/* User Protected Routes */}
         <Route element={<ProtectedRoute allowedRoles={["user"]} />}>
           <Route path="/userhome" element={<UserHome />} />
         </Route>
-
-        {/* Common Protected Routes */}
-        <Route element={<ProtectedRoute allowedRoles={["user", "doctor"]} />}>
-          <Route path="/doctorfinder" element={<DoctorFinder />} />
-          <Route path="/find-doctors" element={<DoctorFinder />} />
-        </Route>
-
-        {/* Fallback route */}
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="/find-doctor" element={<DoctorFinder />} />
       </Routes>
     </Router>
   );

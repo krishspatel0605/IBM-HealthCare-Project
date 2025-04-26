@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextField } from '@mui/material';
-import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus } from 'react-icons/fa';
+import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus, FaMapMarkerAlt } from 'react-icons/fa';
+import { MdLocalHospital } from 'react-icons/md';
 import { Calendar, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Swiper, SwiperSlide } from 'swiper/react';
@@ -347,12 +348,18 @@ export default function UserHome() {
       });
 
       if (response.data) {
-        toast.success('Appointment booked successfully!');
+        toast.success('Great! Your appointment has been successfully booked. A confirmation email will be sent shortly.');
         setShowBookingModal(false);
         setSelectedDoctor(null);
         setBookingDate('');
         setBookingReason('');
         fetchAppointments(); // Refresh the appointments list
+        
+        // Show appointment details in a more visible notification
+        toast.success(`Appointment Details:
+        Doctor: ${selectedDoctor.name}
+        Date: ${new Date(bookingDate).toLocaleString()}
+        ${bookingReason ? `Reason: ${bookingReason}` : ''}`);
       }
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to book appointment');
@@ -564,7 +571,18 @@ export default function UserHome() {
                         <div>
                           <h3 className="text-xl font-bold">{doctor.name}</h3>
                           <p>{doctor.specialization}</p>
-                          {doctor.hospital && <p className="text-sm text-blue-100 mt-1">{doctor.hospital}</p>}
+                          {doctor.hospital && (
+                            <div>
+                              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                                <MdLocalHospital className="text-blue-200" size={14} />
+                                {doctor.hospital.name}
+                              </p>
+                              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                                <FaMapMarkerAlt className="text-blue-200" size={14} />
+                                {doctor.hospital.address}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -651,8 +669,6 @@ export default function UserHome() {
                           </div>
                         </div>
                       )}
-                      
-                      {/* Contact button */}
                       <button
                         onClick={() => handleBookAppointment(doctor.id)}
                         className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
@@ -752,8 +768,19 @@ export default function UserHome() {
                         <FaUserMd className="mt-1" />
                         <div>
                           <h3 className="text-xl font-bold">{doctor.name}</h3>
-                          <p>{doctor.specialization}</p>
-                          {doctor.hospital && <p className="text-sm text-blue-100 mt-1">{doctor.hospital}</p>}
+                          <p className="text-lg">{doctor.specialization}</p>
+                          {doctor.hospital && (
+                            <div>
+                              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                                <MdLocalHospital className="text-blue-200" size={14} />
+                                {doctor.hospital.name}
+                              </p>
+                              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                                <FaMapMarkerAlt className="text-blue-200" size={14} />
+                                {doctor.hospital.address}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -767,7 +794,7 @@ export default function UserHome() {
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Experience</p>
-                            <p className="font-medium">{doctor.experience} years</p>
+                            <p className="font-medium text-gray-900">{doctor.experience} years</p>
                           </div>
                         </div>
                         
@@ -778,7 +805,13 @@ export default function UserHome() {
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Rating</p>
-                            {doctor.rating ? <StarRating rating={doctor.rating} /> : <p>No ratings</p>}
+                            {doctor.rating ? (
+                              <div className="flex items-center gap-1">
+                                <StarRating rating={doctor.rating} />
+                              </div>
+                            ) : (
+                              <p>No ratings</p>
+                            )}
                           </div>
                         </div>
                         
@@ -789,7 +822,7 @@ export default function UserHome() {
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Availability</p>
-                            <p className="font-medium">
+                            <p className="font-medium text-gray-900">
                               {doctor.availability || (doctor.available ? 'Available' : 'Unavailable')}
                             </p>
                           </div>
@@ -801,13 +834,13 @@ export default function UserHome() {
                             <FaMoneyBillWave className="text-purple-600" />
                           </div>
                           <div>
-                            <p className="text-sm text-gray-500">Fee</p>
-                            <p className="font-medium">₹{doctor.fee || 'N/A'}</p>
+                            <p className="text-sm text-gray-500">Consultation Fee</p>
+                            <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr || doctor.fee || 'N/A'}</p>
                           </div>
                         </div>
                       </div>
                       
-                      {/* Specializes in treating */}
+                      {/* Conditions treated */}
                       {doctor.conditions_treated && (
                         <div className="mt-5">
                           <p className="text-sm flex items-center gap-1 font-medium text-green-700">
@@ -835,17 +868,12 @@ export default function UserHome() {
                         </div>
                       )}
                       
-                      {/* Contact button */}
-                      <button 
-                        className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <FaPhoneAlt />
-                        Contact
-                      </button>
+                      {/* Book Appointment button */}
                       <button
                         onClick={() => handleBookAppointment(doctor.id)}
-                        className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                        className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                       >
+                        <FaPhoneAlt size={14} />
                         Book Appointment
                       </button>
                     </div>

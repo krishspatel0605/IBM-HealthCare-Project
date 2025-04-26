@@ -16,23 +16,30 @@ export default function DoctorPlatform() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
 
-  // Check authentication status on component mount
   useEffect(() => {
-    const authToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
-    setIsLoggedIn(!!authToken);
+    const checkAuthStatus = () => {
+      const authToken = localStorage.getItem('auth_token');
+      setIsLoggedIn(!!authToken);
+    };
+
+    // Check on mount and when storage changes
+    checkAuthStatus();
+    window.addEventListener('storage', checkAuthStatus);
+
+    return () => window.removeEventListener('storage', checkAuthStatus);
   }, []);
 
   const handleSignIn = () => navigate('/login');
   
   const handleLogOut = () => {
-    // Only remove the tokens we're actually using
     localStorage.removeItem('auth_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_role');
+    localStorage.removeItem('cached_doctors');
+    localStorage.removeItem('cached_appointments');
     
     setIsLoggedIn(false);
-    
-    // Use navigate instead of window.location for better SPA behavior
+    window.dispatchEvent(new Event('storage'));
     navigate('/', { replace: true });
   };
   
@@ -56,10 +63,21 @@ export default function DoctorPlatform() {
             </button>
 
             <nav className="hidden md:flex items-center gap-6">
-              <Link to="/find-doctors" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
+              <button 
+                onClick={() => {
+                  const token = localStorage.getItem('auth_token');
+                  if (!token) {
+                    sessionStorage.setItem('redirectUrl', '/find-doctor');
+                    navigate('/login');
+                    return;
+                  }
+                  navigate('/find-doctor');
+                }} 
+                className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors"
+              >
                 <FaStethoscope className="text-lg" />
                 Find Specialists
-              </Link>
+              </button>
               <Link to="/about" className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors">
                 <FaClinicMedical className="text-lg" />
                 About
@@ -157,7 +175,16 @@ export default function DoctorPlatform() {
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
-                    onClick={() => navigate('/find-doctors')}
+                    onClick={() => {
+                      const token = localStorage.getItem('auth_token');
+                      if (!token) {
+                        // Save the intended destination
+                        sessionStorage.setItem('redirectUrl', '/find-doctor');
+                        navigate('/login');
+                        return;
+                      }
+                      navigate('/find-doctor');
+                    }}
                     className="flex items-center justify-center gap-2 bg-white text-blue-600 px-8 py-3 rounded-full border-2 border-blue-600 hover:bg-blue-50 transition-colors"
                   >
                     <User size={20} />
@@ -189,47 +216,7 @@ export default function DoctorPlatform() {
             </div>
           </div>
         </section>
-
         {/* Doctor Search */}
-        <section className="py-12 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">
-                Find the Right Medical Specialist for Your Needs
-              </h2>
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-grow relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by disease, condition, or specialist name..."
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <Link
-                  to="/find-doctors"
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
-                >
-                  <Search size={18} />
-                  Search Specialists
-                </Link>
-              </div>
-              <div className="mt-4 text-center">
-                <span className="text-sm text-gray-500">
-                  Find specialists by disease: {" "}
-                </span>
-                <div className="flex flex-wrap justify-center gap-2 mt-2">
-                  <Link to="/find-doctors?query=heart" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Heart Disease</Link>
-                  <Link to="/find-doctors?query=diabetes" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Diabetes</Link>
-                  <Link to="/find-doctors?query=skin" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Skin Conditions</Link>
-                  <Link to="/find-doctors?query=cancer" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Cancer</Link>
-                  <Link to="/find-doctors?query=pediatric" className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-100">Pediatric Care</Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* Featured Doctors */}
         <section className="py-16 bg-gray-50">
           <div className="container mx-auto px-4">

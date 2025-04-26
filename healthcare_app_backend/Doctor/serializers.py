@@ -4,7 +4,14 @@ from hospital.models import Hospital
 from django.core.validators import RegexValidator
 from user_management.models import Appointment
 
+class HospitalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hospital
+        fields = ['id', 'name', 'address', 'latitude', 'longitude']
+
 class DoctorSerializer(serializers.ModelSerializer):
+    hospital = HospitalSerializer(read_only=True)
+    
     class Meta:
         model = Doctor
         fields = '__all__'
