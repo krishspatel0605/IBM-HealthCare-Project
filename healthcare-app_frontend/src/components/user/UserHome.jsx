@@ -15,8 +15,7 @@ import _ from 'lodash';
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
   const possibleUrls = [
-    'http://localhost:8000/api',
-    'http://127.0.0.1:8000/api',
+    process.env.REACT_APP_API_URL,
     window.location.origin + '/api',
   ];
   

@@ -3,8 +3,7 @@ import axios from 'axios';
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
   const possibleUrls = [
-    'http://localhost:8000/api',
-    'http://127.0.0.1:8000/api',
+    process.env.REACT_APP_API_URL,
     window.location.origin + '/api',
   ];
   
@@ -17,7 +16,7 @@ const getApiBaseUrl = () => {
 };
 
 const axiosInstance = axios.create({
-  baseURL: getApiBaseUrl(),
+  baseURL: process.env.REACT_APP_API_URL,
   timeout: 30000, // 30 second timeout
   headers: {
     'Content-Type': 'application/json'
@@ -84,8 +83,7 @@ axiosInstance.interceptors.response.use(
       originalRequest._urlRetry = true;
       const currentUrl = localStorage.getItem('api_base_url');
       const possibleUrls = [
-        'http://localhost:8000/api',
-        'http://127.0.0.1:8000/api',
+        process.env.REACT_APP_API_URL,
         window.location.origin + '/api'
       ];
       
