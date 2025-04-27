@@ -15,7 +15,8 @@ import _ from 'lodash';
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
   const possibleUrls = [
-    process.env.REACT_APP_API_URL,
+    'http://localhost:8000/api',
+    'http://127.0.0.1:8000/api',
     window.location.origin + '/api',
   ];
   
@@ -299,9 +300,6 @@ export default function UserHome() {
     handleSearch(e);
   };
 
-  
-  
-
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   
   const handleLogOut = () => {
@@ -309,7 +307,7 @@ export default function UserHome() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user_role');
-    localStorage.removeItem('userName'); 
+    
     // Navigate to home using SPA routing
     navigate('/', { replace: true });
   };
@@ -428,9 +426,6 @@ export default function UserHome() {
               <Link to="/contact" className="text-gray-600 hover:text-blue-600 transition-colors">
                 Contact
               </Link>
-
-            
-
               <button 
                 onClick={handleLogOut}
                 className="bg-blue-600 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-blue-700 transition-colors"
@@ -992,7 +987,7 @@ export default function UserHome() {
               <h4 className="text-xl font-bold mb-4">Contact</h4>
               <ul className="space-y-2 text-gray-400">
                 <li>Support: +1 (555) 123-4567</li>
-                <li>Email: support@healthcare.com</li>
+                <li>Email: support@healhcare.com</li>
               </ul>
             </div>
             <div>

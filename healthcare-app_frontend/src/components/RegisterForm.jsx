@@ -126,6 +126,7 @@ const RegisterForm = () => {
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
+    
     }
 
     const userData = {
