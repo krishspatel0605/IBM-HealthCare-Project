@@ -145,7 +145,8 @@ const RegisterForm = () => {
       consultation_fee_inr: formData.consultation_fee_inr,
       patients_treated: formData.patients_treated,
       rating: formData.rating,
-      conditions_treated: formData.conditions_treated
+      conditions_treated: formData.conditions_treated,
+      date_of_birth: formData.date_of_birth,
     };
 
     try {

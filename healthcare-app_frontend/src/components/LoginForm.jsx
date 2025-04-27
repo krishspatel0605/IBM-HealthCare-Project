@@ -70,114 +70,102 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
-      <div className="flex flex-col md:flex-row w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div className="min-h-0 min-w-0 bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
+      <div className="flex flex-col md:flex-row w-11/12 max-w-6xl bg-white rounded-2xl shadow-xl overflow-hidden">
         {/* Left image section */}
-        <div className="hidden md:block md:w-1/2 relative">
+        <div className="md:w-1/2 relative">
           <img src={healthcareImage} alt="Healthcare" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-blue-800/50 flex items-end p-6 text-white">
-            <div>
-              <h3 className="text-2xl font-bold mb-2">Welcome Back!</h3>
+          <div className="absolute inset-0 bg-gradient-to-t from-blue-900/60 to-blue-600/40 flex items-end p-8">
+            <div className="text-white">
+              <h3 className="text-3xl font-bold mb-2">Welcome Back!</h3>
               <p className="text-sm opacity-90">Sign in to access your personalized healthcare experience.</p>
             </div>
           </div>
         </div>
 
         {/* Right form section */}
-        <div className="w-full md:w-1/2 p-8">
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Sign In</h2>
-            <p className="text-gray-600">Access your healthcare account</p>
+        <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
+        <div className="text-center mb-8">
+          <div className="inline-block bg-blue-100 p-4 rounded-full mb-4">
+            <FaUser className="text-3xl text-blue-600" />
           </div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Sign In</h1>
+          <p className="text-gray-600">Access your healthcare account</p>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email field */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-gray-700 mb-2 font-medium">Email</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MdEmail className="h-5 w-5 text-gray-400" />
-              </div>
+              <MdEmail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="email"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                placeholder="Email address"
-                required
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               />
             </div>
+          </div>
 
-            {/* Password field */}
+          <div>
+            <label className="block text-gray-700 mb-2 font-medium">Password</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FaLock className="h-5 w-5 text-gray-400" />
-              </div>
+              <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
-                type={showPassword ? "text" : "password"}
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                placeholder="Password"
-                required
+                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               />
               <button
                 type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600"
               >
-                {showPassword ? 
-                  <RiEyeOffFill className="h-5 w-5 text-gray-400" /> :
-                  <RiEyeFill className="h-5 w-5 text-gray-400" />
-                }
+                {showPassword ? <RiEyeOffFill /> : <RiEyeFill />}
               </button>
             </div>
+          </div>
 
-            {/* Error/Success Messages */}
-            {error && (
-              <div className="flex items-center text-red-600 bg-red-50 p-3 rounded-lg">
-                <FaExclamationTriangle className="h-5 w-5 mr-2" />
-                {error}
-              </div>
-            )}
-            {message && (
-              <div className="flex items-center text-green-600 bg-green-50 p-3 rounded-lg">
-                <FaCheckCircle className="h-5 w-5 mr-2" />
-                {message}
-              </div>
-            )}
+          <div className="flex items-center justify-between">
+            <a href="/forgot-password" className="text-blue-600 hover:text-blue-700 text-sm">
+              Forgot Password?
+            </a>
+          </div>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
-                loading ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-
-            {/* Additional Links */}
-            <div className="text-center space-y-2">
-              <button
-                type="button"
-                onClick={() => navigate('/forgot-password')}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                Forgot Password?
-              </button>
-              <p className="text-gray-600">
-                Don't have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => navigate('/register')}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  Sign Up
-                </button>
-              </p>
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 p-3 rounded-lg text-red-600">
+              <FaExclamationTriangle className="flex-shrink-0" />
+              <span>{error}</span>
             </div>
-          </form>
-        </div>
+          )}
+
+          {message && (
+            <div className="flex items-center gap-2 bg-green-50 p-3 rounded-lg text-green-600">
+              <FaCheckCircle className="flex-shrink-0" />
+              <span>{message}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? 'Signing In...' : <><FaLock className="text-lg" /> Sign In</>}
+          </button>
+
+          <p className="text-center text-gray-600 mt-6">
+            Don't have an account?{' '}
+            <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+              Create Account
+            </a>
+          </p>
+        </form>
+      </div>
+
       </div>
     </div>
   );

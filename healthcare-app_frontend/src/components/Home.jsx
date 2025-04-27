@@ -124,7 +124,7 @@ export default function DoctorPlatform() {
               </Link>
               {isLoggedIn ? (
                 <button 
-                  onClick={handleLogOut}
+                  onClick={handleLogOut}  
                   className="w-full bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 flex items-center justify-center gap-2"
                 >
                   <FaUserMd />

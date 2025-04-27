@@ -147,76 +147,82 @@ const VerifyLoginOTP = () => {
         </div>
 
         {/* Right form section */}
-        <div className="w-full md:w-1/2 p-8">
-          <div className="mb-8 text-center">
-            <h2 className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</h2>
+        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
+          <div className="text-center mb-6">
+            <div className="inline-block bg-blue-100 p-4 rounded-full mb-4">
+              <FaKey className="text-2xl text-blue-600" />
+            </div>            
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</h1>
             <p className="text-gray-600">
-              Enter the code sent to {maskEmail(email)}
+              Enter the OTP sent to <strong>{maskEmail(email)}</strong>
             </p>
           </div>
 
-          <div className="space-y-6">
+          <div className="flex justify-center gap-2 mb-4">
             {/* OTP Input Fields */}
-            <div className="flex justify-center space-x-3">
-              {otp.map((digit, index) => (
-                <input
-                  key={index}
-                  type="text"
-                  id={`otp-${index}`}
-                  value={digit}
-                  onChange={(e) => handleOtpChange(index, e.target.value)}
-                  onKeyDown={(e) => handleBackspace(index, e)}
-                  maxLength={1}
-                  className="w-12 h-12 text-center text-2xl border rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
-                />
-              ))}
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                id={`otp-${index}`}
+                type="text"
+                value={digit}
+                onChange={(e) => handleOtpChange(index, e.target.value)}
+                onKeyDown={(e) => handleBackspace(index, e)}
+                maxLength={1}
+                className="w-12 h-12 text-center text-xl font-semibold text-gray-800 border border-gray-300 rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            ))}
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-center gap-2 bg-red-50 p-3 rounded-lg text-red-600 mb-2">
+              <FaExclamationTriangle className="flex-shrink-0" />
+              <span>{error}</span>
             </div>
+          )}
 
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-center text-red-600 bg-red-50 p-3 rounded-lg">
-                <FaExclamationTriangle className="h-5 w-5 mr-2" />
-                {error}
-              </div>
-            )}
+          {/* Verify Button */}
+          <button
+            onClick={handleVerify}
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-all"
+          >
+            {loading ? "Verifying..." : "Verify OTP"}
+          </button>
 
-            {/* Verify Button */}
-            <button
-              onClick={handleVerify}
-              disabled={loading}
-              className={`w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
-                loading ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-            >
-              {loading ? "Verifying..." : "Verify OTP"}
-            </button>
-
-            {/* Resend OTP */}
-            <div className="text-center">
+          {/* Resend OTP */}
+          <div className="text-center mt-6 text-sm">
+            {timer > 0 ? (
+              <span className="text-gray-500">Resend OTP in {timer}s</span>
+            ) : (
               <button
                 onClick={handleResendOTP}
                 disabled={isResendDisabled}
-                className={`text-blue-600 hover:text-blue-800 ${
-                  isResendDisabled ? "opacity-50 cursor-not-allowed" : ""
+                className={`font-medium ${
+                  isResendDisabled
+                    ? "text-gray-400 cursor-not-allowed"
+                    : "text-blue-600 hover:underline"
                 }`}
               >
-                Resend OTP {timer > 0 && `(${timer}s)`}
+                Resend OTP
               </button>
-            </div>
+            )}
+          </div>
 
-            {/* Back to Login */}
-            <div className="text-center">
-              <button
-                onClick={() => navigate("/login")}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                ← Back to Login
-              </button>
-            </div>
+          {/* Back to Login */}
+          <div className="text-center mt-4">
+            <button
+              onClick={() => navigate("/login")}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              ← Back to Login
+            </button>
           </div>
         </div>
+
+        </div>
       </div>
-    </div>
   );
 };
 
