@@ -10,7 +10,8 @@ import _ from 'lodash';
 const getApiBaseUrl = () => {
   // Try different possible backend URLs in order of preference
   const possibleUrls = [
-    process.env.REACT_APP_API_URL,  
+    'http://localhost:8000/api',  // Default development URL
+    'http://127.0.0.1:8000/api',  // Alternative localhost URL
     window.location.origin + '/api' // Same-origin API for production
   ];
   // Get stored URL from localStorage if available
@@ -82,7 +83,8 @@ axiosInstance.interceptors.response.use(
 // Helper function to try alternative API URLs if the main one fails
 const tryAlternativeApiUrls = async (endpoint, retryCount = 0) => {
   const possibleUrls = [
-    process.env.REACT_APP_API_URL,  
+    'http://localhost:8000/api',
+    'http://127.0.0.1:8000/api',
     window.location.origin + '/api'
   ];
   
