@@ -196,171 +196,123 @@ def recommend_doctors(request):
         )
 
     try:
-        # Get doctors from database
-        doctors = Doctor.objects.all()
-        doctor_list = list(doctors.values())
-
-        # If no doctors found, return dummy data
-        if not doctor_list:
-            # Dummy data for testing
-            dummy_doctors = [
-                {
-                    'id': 1,
-                    'name': 'Dr. Sarah Johnson',
-                    'specialization': 'Pulmonology',
-                    'experience_years': 15,
-                    'availability': 'Mon-Fri, 9AM-5PM',
-                    'consultation_fee_inr': 1500,
-                    'rating': 4.8,
-                    'patients_treated': 5000,
-                    'mobile_number': '1234567890',
-                    'conditions_treated': 'Asthma,Bronchitis,COPD,Sleep Apnea',
-                },
-                {
-                    'id': 2,
-                    'name': 'Dr. Michael Chen',
-                    'specialization': 'Cardiology',
-                    'experience_years': 12,
-                    'availability': 'Mon-Sat, 10AM-6PM',
-                    'consultation_fee_inr': 2000,
-                    'rating': 4.7,
-                    'patients_treated': 4500,
-                    'mobile_number': '2345678901',
-                    'conditions_treated': 'Heart Disease,Hypertension,Arrhythmia',
+        # More flexible search using Q objects for both specialization and conditions
+        doctors = Doctor.objects.select_related('hospital').filter(
+            Q(specialization__icontains=query) |  # Match specialization
+            Q(conditions_treated__icontains=query)  # Match conditions
+        ).distinct()
+        
+        doctor_list = []
+        for doctor in doctors:
+            doctor_data = {
+                'id': doctor.id,
+                'name': doctor.name,
+                'specialization': doctor.specialization,
+                'experience_years': doctor.experience_years,
+                'availability': doctor.availability,
+                'consultation_fee_inr': doctor.consultation_fee_inr,
+                'patients_treated': doctor.patients_treated,
+                'rating': doctor.rating,
+                'conditions_treated': doctor.conditions_treated or [],
+                'mobile_number': doctor.mobile_number,
+            }
+            
+            if doctor.hospital:
+                doctor_data['hospital'] = {
+                    'id': doctor.hospital.id,
+                    'name': doctor.hospital.name,
+                    'address': doctor.hospital.address,
+                    'latitude': str(doctor.hospital.latitude),
+                    'longitude': str(doctor.hospital.longitude)
                 }
-            ]
-            # Filter dummy data based on query
-            filtered_doctors = [
-                doc for doc in dummy_doctors 
-                if query in doc['specialization'].lower() 
-                or query in doc['conditions_treated'].lower()
-            ]
-            return Response({'recommended_doctors': filtered_doctors})
+            
+            doctor_list.append(doctor_data)
 
-        # If doctors exist, use the recommender system
-        processed_doctors = batch_preprocess_doctors(doctor_list)
-        
-        # Get recommendations
-        recommender = get_recommender()
-        if not recommender or not recommender_available:
-            # Fallback to simple text matching if recommender is not available
-            filtered_doctors = [
-                doc for doc in doctor_list 
-                if query in doc['specialization'].lower() 
-                or (doc.get('conditions_treated', '') and query in doc['conditions_treated'].lower())
-            ]
-            return Response({'recommended_doctors': filtered_doctors[:limit]})
+        if doctor_list:
+            # Process for recommendation system
+            for doctor in doctor_list:
+                # Normalize conditions_treated to always be a list
+                if isinstance(doctor.get('conditions_treated'), str):
+                    doctor['conditions_treated'] = [c.strip() for c in doctor['conditions_treated'].split(',')]
+                elif doctor.get('conditions_treated') is None:
+                    doctor['conditions_treated'] = []
 
-        recommended_doctors = recommender.recommend_doctors(
-            query=query,
-            limit=limit,
-            page=1,
-            user_latitude=float(request.GET.get('user_latitude')) if request.GET.get('user_latitude') else None,
-            user_longitude=float(request.GET.get('user_longitude')) if request.GET.get('user_longitude') else None
-        )
-        
+                # Calculate match score based on specialization and conditions
+                specialization_match = query in doctor['specialization'].lower()
+                conditions_match = any(query in cond.lower() for cond in doctor['conditions_treated'])
+                doctor['treats_searched_condition'] = specialization_match or conditions_match
+
+            # Try using the recommender system
+            try:
+                processed_doctors = batch_preprocess_doctors(doctor_list)
+                recommender = get_recommender()
+                if recommender and recommender_available:
+                    recommended_doctors = recommender.recommend_doctors(
+                        query=query,
+                        limit=limit,
+                        page=1,
+                        user_latitude=float(request.GET.get('user_latitude')) if request.GET.get('user_latitude') else None,
+                        user_longitude=float(request.GET.get('user_longitude')) if request.GET.get('user_longitude') else None
+                    )
+                    if recommended_doctors:
+                        return Response({
+                            'recommended_doctors': recommended_doctors
+                        })
+
+            except Exception as e:
+                logger.warning(f"Recommender system failed, falling back to direct search: {str(e)}")
+
+            # Sort doctors by relevance if recommender fails
+            doctor_list.sort(key=lambda x: (
+                x['treats_searched_condition'],  # First prioritize exact matches
+                x.get('rating', 0) or 0,  # Then by rating
+                x.get('experience_years', 0) or 0,  # Then by experience
+                x.get('patients_treated', 0) or 0  # Then by number of patients
+            ), reverse=True)
+
+            return Response({
+                'recommended_doctors': doctor_list[:limit]
+            })
+
         return Response({
-            'recommended_doctors': recommended_doctors
+            'recommended_doctors': []
         })
 
     except Exception as e:
         logger.error(f"Recommendation error: {str(e)}")
-        # Return dummy data in case of any error
-        dummy_doctors = [
-            {
-                'id': 1,
-                'name': 'Dr. Sarah Johnson',
-                'specialization': 'Pulmonology',
-                'experience_years': 15,
-                'availability': 'Mon-Fri, 9AM-5PM',
-                'consultation_fee_inr': 1500,
-                'rating': 4.8,
-                'patients_treated': 5000,
-                'mobile_number': '1234567890',
-                'conditions_treated': 'Asthma,Bronchitis,COPD,Sleep Apnea',
-            }
-        ]
-        return Response({'recommended_doctors': dummy_doctors})
+        return Response({
+            'error': 'Failed to fetch doctors',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @cache_page(60 * 5)  # Cache for 5 minutes
 def list_all_doctors(request):
     """List all doctors in the database"""
     try:
-        # Try to get from cache first
         cache_key = 'all_doctors_list'
         cached_doctors = cache.get(cache_key)
         
         if cached_doctors:
             return Response(cached_doctors)
 
-        doctors = Doctor.objects.all()
+        doctors = Doctor.objects.select_related('hospital').all()
         doctor_count = doctors.count()
-
-        # If no doctors found, return dummy data
-        if doctor_count == 0:
-            dummy_doctors = [
-                {
-                    'id': 1,
-                    'name': 'Dr. Sarah Johnson',
-                    'specialization': 'Pulmonology',
-                    'experience_years': 15,
-                    'availability': 'Mon-Fri, 9AM-5PM',
-                    'consultation_fee_inr': 1500,
-                    'rating': 4.8,
-                    'patients_treated': 5000,
-                    'mobile_number': '1234567890',
-                    'conditions_treated': 'Asthma,Bronchitis,COPD,Sleep Apnea',
-                },
-                {
-                    'id': 2,
-                    'name': 'Dr. Michael Chen',
-                    'specialization': 'Cardiology',
-                    'experience_years': 12,
-                    'availability': 'Mon-Sat, 10AM-6PM',
-                    'consultation_fee_inr': 2000,
-                    'rating': 4.7,
-                    'patients_treated': 4500,
-                    'mobile_number': '2345678901',
-                    'conditions_treated': 'Heart Disease,Hypertension,Arrhythmia',
-                }
-            ]
-            return Response({
-                'doctors': dummy_doctors,
-                'count': len(dummy_doctors)
-            })
-
+        
         serializer = DoctorSerializer(doctors, many=True)
         response_data = {
             'doctors': serializer.data,
             'count': doctor_count
         }
         
-        # Cache the response
-        cache.set(cache_key, response_data, timeout=60 * 5)  # Cache for 5 minutes
-        
+        cache.set(cache_key, response_data, timeout=60 * 5)
         return Response(response_data)
     except Exception as e:
         logger.error(f"Error listing doctors: {str(e)}")
-        # Return dummy data in case of error
-        dummy_doctors = [
-            {
-                'id': 1,
-                'name': 'Dr. Sarah Johnson',
-                'specialization': 'Pulmonology',
-                'experience_years': 15,
-                'availability': 'Mon-Fri, 9AM-5PM',
-                'consultation_fee_inr': 1500,
-                'rating': 4.8,
-                'patients_treated': 5000,
-                'mobile_number': '1234567890',
-                'conditions_treated': 'Asthma,Bronchitis,COPD,Sleep Apnea',
-            }
-        ]
         return Response({
-            'doctors': dummy_doctors,
-            'count': len(dummy_doctors)
-        })
+            'error': 'Failed to fetch doctors',
+            'detail': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET', 'PUT'])
 def manage_doctor_profile(request, email=None):
@@ -528,9 +480,35 @@ def doctor_appointments(request):
     try:
         # Log the user info for debugging
         logger.debug(f"doctor_appointments called by user: {request.user}, authenticated: {request.user.is_authenticated}")
+        logger.debug(f"User mobile_number: {getattr(request.user, 'mobile_number', 'No mobile_number attribute')}")
         
         # Get the doctor associated with the logged-in user
-        doctor = Doctor.objects.get(mobile_number=request.user.mobile_number)
+        try:
+            doctor = Doctor.objects.get(mobile_number=request.user.mobile_number)
+        except Doctor.DoesNotExist:
+            logger.warning(f"Doctor profile not found for user mobile_number: {request.user.mobile_number}. Creating new profile.")
+            # Get or create a default hospital
+            from hospital.models import Hospital
+            hospital = Hospital.objects.first()
+            if not hospital:
+                hospital = Hospital.objects.create(
+                    name="Default Hospital",
+                    specialization="General",
+                    address="Default Address",
+                    latitude=0.0,
+                    longitude=0.0,
+                    available_beds=0,
+                    diseases_treated=[]
+                )
+            # Create a new Doctor profile with default specialization and required fields
+            doctor = Doctor.objects.create(
+                name=request.user.name,
+                mobile_number=request.user.mobile_number,
+                specialization="General",
+                consultation_fee_inr=0,
+                hospital=hospital
+            )
+        
         logger.debug(f"Found doctor: {doctor.name} with mobile_number: {doctor.mobile_number}")
         
         # Get all appointments for this doctor
@@ -540,11 +518,6 @@ def doctor_appointments(request):
         serializer = AppointmentSerializer(appointments, many=True)
         return Response(serializer.data)
         
-    except Doctor.DoesNotExist:
-        logger.error(f"Doctor not found for user: {request.user}")
-        return Response({
-            'error': 'Doctor not found'
-        }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         logger.error(f"Error in doctor_appointments: {str(e)}")
         return Response({

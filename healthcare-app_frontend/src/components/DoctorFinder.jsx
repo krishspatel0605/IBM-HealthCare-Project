@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt } from 'react-icons/fa';
+import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt, FaMapMarkerAlt } from 'react-icons/fa';
 import { MdLocalHospital, MdAccountCircle } from 'react-icons/md';
 import { toast } from 'react-toastify';
 import _ from 'lodash';
@@ -229,6 +229,17 @@ const DoctorFinder = () => {
   
   const location = useLocation();
   
+  // Check authentication on mount
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      // Save the current URL for redirect after login
+      sessionStorage.setItem('redirectUrl', '/find-doctor' + location.search);
+      navigate('/login');
+      return;
+    }
+  }, [navigate, location]);
+
   // Check user login status on component mount and on location change for debugging
   useEffect(() => {
     const checkLoginStatus = () => {
@@ -464,58 +475,45 @@ const DoctorFinder = () => {
           apiUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
         }
 
-        const cacheKey = `doctors_search_${searchTerm}_${currentPage}`;
-        const cachedResult = localStorage.getItem(cacheKey);
-        
-        if (cachedResult) {
-          const { data, timestamp } = JSON.parse(cachedResult);
-          // Use cache if less than 5 minutes old
-          if (Date.now() - timestamp < 5 * 60 * 1000) {
-            const doctors = data.map(doctor => ({
-              ...doctor,
-              treats_searched_condition: 
-                (doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-                (doctor.conditions_treated && Array.isArray(doctor.conditions_treated) && 
-                 doctor.conditions_treated.some(condition => 
-                   condition.toLowerCase().includes(searchTerm.toLowerCase())
-                 ))
-            }));
-
-            setDoctors(doctors);
-            setTotalPages(Math.ceil(doctors.length / doctorsPerPage));
-            setUsingDummyData(false);
-            setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
-            return;
-          }
-        }
-
         const response = await axiosInstance.get(apiUrl);
         
         if (response.data && response.data.recommended_doctors) {
-          const doctors = response.data.recommended_doctors.map(doctor => ({
-            ...doctor,
-            treats_searched_condition: 
-              (doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-              (doctor.conditions_treated && Array.isArray(doctor.conditions_treated) && 
-               doctor.conditions_treated.some(condition => 
-                 condition.toLowerCase().includes(searchTerm.toLowerCase())
-               ))
-          }));
+          const doctors = response.data.recommended_doctors.map(doctor => {
+            // Normalize conditions_treated to always be an array
+            const conditions = doctor.conditions_treated 
+              ? (Array.isArray(doctor.conditions_treated) 
+                  ? doctor.conditions_treated 
+                  : doctor.conditions_treated.split(',').map(c => c.trim()))
+              : [];
+
+            // Check if doctor treats the searched condition
+            const treats_searched_condition = 
+              doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              conditions.some(condition => 
+                condition.toLowerCase().includes(searchTerm.toLowerCase())
+              );
+
+            return {
+              ...doctor,
+              conditions_treated: conditions,
+              treats_searched_condition
+            };
+          });
 
           setDoctors(doctors);
           setTotalPages(Math.ceil(doctors.length / doctorsPerPage));
           setUsingDummyData(false);
-          setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
-
-          // Cache the results
-          localStorage.setItem(cacheKey, JSON.stringify({
-            data: doctors,
-            timestamp: Date.now()
-          }));
+          
+          if (doctors.length > 0) {
+            setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
+            setError('');
+          } else {
+            setError(`No doctors found treating "${searchTerm}"`);
+          }
         } else {
           setDoctors([]);
           setTotalPages(1);
-          setError(`No doctors found for "${searchTerm}"`);
+          setError(`No doctors found treating "${searchTerm}"`);
         }
       } catch (error) {
         handleSearchError(error, searchTerm);
@@ -661,7 +659,15 @@ const DoctorFinder = () => {
       });
 
       if (response.data) {
-        toast.success('Appointment booked successfully!');
+        // First success message
+        toast.success('Great! Your appointment has been successfully booked. A confirmation email will be sent shortly.');
+        
+        // Show a second toast with appointment details
+        toast.success(`Appointment Details:
+        Doctor: ${selectedDoctor.name}
+        Date: ${new Date(bookingDate).toLocaleString()}
+        ${bookingReason ? `Reason: ${bookingReason}` : ''}`);
+        
         setShowBookingModal(false);
         setSelectedDoctor(null);
         setBookingDate('');
@@ -1091,7 +1097,19 @@ const DoctorFinder = () => {
                       <FaUser className="mt-1" />
                       <div>
                         <h3 className="text-xl font-bold">{doctor.name}</h3>
-                        <p>{doctor.specialization}</p>
+                        <p className="text-lg">{doctor.specialization}</p>
+                        {doctor.hospital && (
+                          <div>
+                            <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                              <MdLocalHospital className="text-blue-200" size={14} />
+                              {doctor.hospital.name}
+                            </p>
+                            <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                              <FaMapMarkerAlt className="text-blue-200" size={14} />
+                              {doctor.hospital.address}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1105,7 +1123,7 @@ const DoctorFinder = () => {
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Experience</p>
-                          <p className="font-medium">{doctor.experience} years</p>
+                          <p className="font-medium text-gray-900">{doctor.experience_years} years</p>
                         </div>
                       </div>
                       
@@ -1116,58 +1134,63 @@ const DoctorFinder = () => {
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Rating</p>
-                          <p className="font-medium">{doctor.rating} / 5</p>
+                          <div className="flex items-center gap-1">
+                            <StarRating rating={doctor.rating} />
+                          </div>
                         </div>
                       </div>
                       
                       {/* Patients Treated */}
                       <div className="flex items-center gap-2">
-                        <div className="bg-teal-50 p-2 rounded-md">
-                          <FaUser className="text-teal-600" />
+                        <div className="bg-green-50 p-2 rounded-md">
+                          <FaUser className="text-green-600" />
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Patients Treated</p>
-                          <p className="font-medium">{doctor.patients_treated || 'N/A'}</p>
+                          <p className="font-medium text-gray-900">{doctor.patients_treated || 'N/A'}</p>
                         </div>
                       </div>
                       
                       {/* Availability */}
                       <div className="flex items-center gap-2">
-                        <div className="bg-green-50 p-2 rounded-md">
-                          <FaClock className="text-green-600" />
+                        <div className="bg-purple-50 p-2 rounded-md">
+                          <FaClock className="text-purple-600" />
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Availability</p>
-                          <p className="font-medium">{doctor.availability}</p>
+                          <p className="font-medium text-gray-900">{doctor.availability}</p>
                         </div>
                       </div>
-                      
-                      {/* Fee */}
+                    </div>
+
+                    {/* Fee and Location in a separate row */}
+                    <div className="mt-4 grid grid-cols-2 gap-4">
+                      {/* Consultation Fee */}
                       <div className="flex items-center gap-2">
-                        <div className="bg-purple-50 p-2 rounded-md">
-                          <FaMoneyBillWave className="text-purple-600" />
+                        <div className="bg-teal-50 p-2 rounded-md">
+                          <FaMoneyBillWave className="text-teal-600" />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-500">Fee</p>
-                          <p className="font-medium">₹{doctor.fee}</p>
+                          <p className="text-sm text-gray-500">Consultation Fee</p>
+                          <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr}</p>
                         </div>
                       </div>
 
-                      {/* Location / Address */}
-                      {doctor.location && (
-                        <div className="flex items-center gap-2 mt-3">
-                          <div className="bg-gray-100 p-2 rounded-md">
+                      {/* Location */}
+                      {doctor.hospital && doctor.hospital.address && (
+                        <div className="flex items-center gap-2">
+                          <div className="bg-gray-50 p-2 rounded-md">
                             <MdLocalHospital className="text-gray-600" />
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Location</p>
-                            <p className="font-medium">{doctor.location}</p>
+                            <p className="font-medium text-gray-900">{doctor.hospital.address}</p>
                           </div>
                         </div>
                       )}
                     </div>
-                    
-                    {/* Book Appoinment button */}
+
+                    {/* Book Appointment button */}
                     <button 
                       onClick={() => handleBookAppointment(doctor)}
                       className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"

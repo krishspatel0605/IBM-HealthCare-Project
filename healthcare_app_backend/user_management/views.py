@@ -810,30 +810,50 @@ class RecommendedConditionsView(APIView):
             return Response({"error": "Failed to fetch recommended conditions"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class TestDoctorCreationView(APIView):
+    permission_classes = []  # Allow unauthenticated access for testing
+
     def get(self, request):
         try:
+            from hospital.models import Hospital
+            from Doctor.models import Doctor
+
+            # Get hospital first
+            hospital, _ = Hospital.objects.get_or_create(
+                name="Test Hospital",
+                defaults={
+                    'address': "123 Test Street",
+                    'latitude': 23.0225,
+                    'longitude': 72.5714,
+                    'available_beds': 100
+                }
+            )
+
             doctor_data = {
-                'name': "Test Doctor",
-                'mobile_number': "1234567890",
-                'specialization': "General",
-                'experience': 5,
-                'availability': "10 AM - 5 PM",
-                'fee': 500,
-                'patients_treated': 0,
-                'rating': 4.0,
-                'conditions_treated': []
+                'name': "Dr. Test Specialist",
+                'mobile_number': "9876543210",
+                'specialization': "Pulmonology",
+                'experience_years': 10,
+                'availability': "Mon-Fri, 9AM-5PM",
+                'consultation_fee_inr': 1000,
+                'patients_treated': 2000,
+                'rating': 4.5,
+                'conditions_treated': ["Asthma", "COPD", "Bronchitis"],
+                'hospital': hospital
             }
-            logger.info(f"Test: Creating doctor with data: {doctor_data}")
 
             doctor = Doctor.objects.create(**doctor_data)
-
             return Response({
                 "message": "Test doctor created successfully!",
-                "doctor_id": doctor.id
+                "doctor_id": doctor.id,
+                "doctor_data": {
+                    "name": doctor.name,
+                    "specialization": doctor.specialization,
+                    "conditions_treated": doctor.conditions_treated
+                }
             }, status=status.HTTP_201_CREATED)
+
         except Exception as e:
             logger.error(f"Test doctor creation failed: {str(e)}")
-            logger.error(f"Full traceback: {traceback.format_exc()}")
             return Response(
                 {"error": f"Failed to create test doctor: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -849,7 +869,16 @@ class UserAppointmentsView(APIView):
             logger.debug(f"User role: {getattr(request.user, 'role', 'No role attribute')}")
             logger.debug(f"User permissions: {request.user.get_all_permissions() if hasattr(request.user, 'get_all_permissions') else 'No get_all_permissions method'}")
             user = request.user
-            appointments = Appointment.objects.filter(user=user).select_related('doctor').order_by('-appointment_date')
+            if user.role == 'doctor':
+                # Find the Doctor instance matching the logged-in user's mobile number
+                doctor = Doctor.objects.filter(mobile_number=user.mobile_number).first()
+                if doctor:
+                    appointments = Appointment.objects.filter(doctor=doctor).select_related('doctor').order_by('-appointment_date')
+                else:
+                    appointments = []
+            else:
+                # Existing behavior for normal users
+                appointments = Appointment.objects.filter(user=user).select_related('doctor').order_by('-appointment_date')
             serializer = AppointmentSerializer(appointments, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
