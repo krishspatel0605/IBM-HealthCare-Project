@@ -95,7 +95,6 @@ class RegisterUserView(APIView):
                 'address': address,
                 'latitude': latitude,
                 'longitude': longitude,
-                'hospital_name': request.data.get("hospital_name", ""),
                 'specialization': request.data.get("specialization", ""),
                 'experience_years': request.data.get("experience", 0),
                 'availability': request.data.get("availability", ""),
