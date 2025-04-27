@@ -67,7 +67,7 @@ class DoctorRegistrationSerializer(serializers.Serializer):
             name=hospital_data['name'],
             defaults=hospital_data
         )
-
+            
         # Create the doctor
         doctor_data = {
             'name': f"{validated_data['first_name']} {validated_data['last_name']}",
@@ -83,3 +83,5 @@ class DoctorRegistrationSerializer(serializers.Serializer):
         
         doctor = Doctor.objects.create(**doctor_data)
         return doctor
+    
+

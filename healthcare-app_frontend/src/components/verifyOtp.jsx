@@ -19,6 +19,7 @@ const VerifyOTP = () => {
   const [searchParams] = useSearchParams();
   const [timer, setTimer] = useState(30);
   const [isResendDisabled, setIsResendDisabled] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const token = searchParams.get("token");
   const email = searchParams.get("email");
 
@@ -40,6 +41,10 @@ const VerifyOTP = () => {
       if (value && index < 5) {
         document.getElementById(`otp-${index + 1}`).focus();
       }
+      // Auto-submit when all OTP digits are entered
+      if (newOtp.join("").length === 6) {
+        handleVerify(newOtp.join(""));
+      }
     }
   };
 
@@ -52,12 +57,13 @@ const VerifyOTP = () => {
     }
   };
 
-  const handleVerify = async () => {
-    const otpCode = otp.join("");
+  const handleVerify = async (otpCode) => {
     if (!token || otpCode.length !== 6) {
       setError("Please enter a valid 6-digit OTP.");
       return;
     }
+
+    setIsLoading(true); // Set loading state to true during API call
 
     try {
       const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/activate/`, {
@@ -77,7 +83,9 @@ const VerifyOTP = () => {
     } catch {
       setError("Invalid OTP or expired token.");
       setSuccess("");
-      setTimeout(() => navigate("/register"), 2000);
+      // setTimeout(() => navigate("/register"), 2000);
+    } finally {
+      setIsLoading(false); // Reset loading state after API call
     }
   };
 
@@ -99,19 +107,15 @@ const VerifyOTP = () => {
         setSuccess("OTP resent successfully!");
         setError("");
         setIsResendDisabled(false);
-        } else {
+      } else {
         setError(response.data.error || "Failed to resend OTP. Try again.");
         setIsResendDisabled(false);
-        }
       }
-      catch {
-        setError("Failed to resend OTP. Try again.");
-        setIsResendDisabled(false);
-      }
-
+    } catch {
+      setError("Failed to resend OTP. Try again.");
+      setIsResendDisabled(false);
+    }
   };
-  
-  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
@@ -168,10 +172,11 @@ const VerifyOTP = () => {
           )}
 
           <button
-            onClick={handleVerify}
+            onClick={() => handleVerify(otp.join(""))}
+            disabled={isLoading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-all"
           >
-            Verify OTP
+            {isLoading ? "Verifying..." : "Verify OTP"}
           </button>
 
           <div className="text-center mt-6 text-sm">

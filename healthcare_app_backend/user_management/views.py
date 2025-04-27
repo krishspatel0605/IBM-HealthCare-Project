@@ -17,11 +17,6 @@ from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.conf import settings
 from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken
 from .permissions import IsDoctor, IsUser  # Import role-based permissions
 from django.utils.timezone import now
 from datetime import timedelta
@@ -90,6 +85,7 @@ class RegisterUserView(APIView):
         }
 
         if role == "doctor":
+            
             # Extract doctor-specific data
             doctor_data = {
                 'first_name': name.split()[0] if name else '',
@@ -105,6 +101,7 @@ class RegisterUserView(APIView):
                 'consultation_fee_inr': request.data.get("consultation_fee_inr", 0),
                 'password': password,
                 'confirm_password': request.data.get("confirm_password", password),
+                
             }
             # Validate doctor data using DoctorRegistrationSerializer
             doctor_serializer = DoctorRegistrationSerializer(data=doctor_data)
@@ -172,6 +169,100 @@ class RegisterUserView(APIView):
         )
         return Response({'error': 'Account is not activated. Please check your email for activation instructions.'}, status=status.HTTP_403_FORBIDDEN)
             
+# class ActivationView(APIView):
+#     permission_classes = []
+
+#     def post(self, request):
+#         token = request.data.get("token")
+#         email_otp = request.data.get("otp")
+
+#         if not token or not email_otp:
+#             return Response({'error': 'Token and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         activation_entry = ActivationToken.objects.filter(token=token).first()
+
+#         if not activation_entry:
+#             return Response({'error': 'Invalid or expired activation token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if activation_entry.is_expired():
+#             activation_entry.delete()
+#             return Response({'error': 'OTP expired. Please try registering again.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if activation_entry.otp.strip() != email_otp.strip():
+#             return Response({'error': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             user_data = activation_entry.user_data
+#             role = user_data.get('role', 'user')
+
+#             # Common fields
+#             base_fields = {
+#                 'email': activation_entry.email,
+#                 'name': user_data['name'],
+#                 'mobile_number': user_data['mobile_number'],
+#                 'password': user_data['password'],  # already hashed
+#                 'role': role,
+#                 'address': user_data.get('address', ''),
+#                 'date_of_birth': user_data.get('date_of_birth'),
+#                 'latitude': user_data.get('latitude'),
+#                 'longitude': user_data.get('longitude'),
+#                 'is_active': True,
+#             }
+
+#             # Create User instance
+#             user = User.objects.create(**base_fields)
+
+#             # If doctor, create Doctor instance
+#             if role == 'doctor':
+#                 # Prepare doctor data
+#                 doctor_data = {
+#                     'name': user_data.get('name'),
+#                     'mobile_number': user_data.get('mobile_number'),
+#                     'specialization': user_data.get('specialization'),
+#                     'experience': user_data.get('experience'),
+#                     'availability': user_data.get('availability'),
+#                     'patients_treated': user_data.get('patients_treated'),
+#                     'hospital_name': user_data.get('hospital_name'),
+#                     'consultation_fee_inr': user_data.get('consultation_fee_inr', 0),
+#                 }
+
+#             # Handle hospital creation or retrieval
+#                 hospital_name = user_data.get('hospital_name')
+#                 hospital_address = user_data.get('address')
+#                 hospital_latitude = user_data.get('latitude')
+#                 hospital_longitude = user_data.get('longitude')
+
+#                 if not hospital_name:
+#                     return Response({'error': 'Hospital name is required for doctor activation.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#                 hospital, created = Hospital.objects.get_or_create(
+#                     name=hospital_name,
+#                     defaults={
+#                         'address': hospital_address,
+#                         'latitude': hospital_latitude,
+#                         'longitude': hospital_longitude,
+#                         'available_beds': 0,
+#                     }
+#                 )
+
+#             doctor_data['hospital'] = hospital
+
+#             # Create Doctor instance
+#             Doctor.objects.create(**doctor_data)
+
+#             activation_entry.delete()
+
+#             return Response({
+#                 'success': True,
+#                 'message': 'Account activated successfully.',
+#                 'user_id': user.id,
+#                 'role': user.role
+#             }, status=status.HTTP_201_CREATED)
+
+#         except Exception as e:
+#             logger.error(f"User creation failed: {str(e)}")
+#             return Response({'error': f'User creation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ActivationView(APIView):
     permission_classes = []
 
@@ -225,34 +316,35 @@ class ActivationView(APIView):
                     'experience': user_data.get('experience'),
                     'availability': user_data.get('availability'),
                     'patients_treated': user_data.get('patients_treated'),
-                    'hospital_name': user_data.get('hospital_name'),
                     'consultation_fee_inr': user_data.get('consultation_fee_inr', 0),
                 }
 
-            # Handle hospital creation or retrieval
-            hospital_name = user_data.get('hospital_name')
-            hospital_address = user_data.get('address')
-            hospital_latitude = user_data.get('latitude')
-            hospital_longitude = user_data.get('longitude')
+                # Handle hospital creation or retrieval for doctor
+                hospital_name = user_data.get('hospital_name')
+                if not hospital_name:
+                    return Response({'error': 'Hospital name is required for doctor activation.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not hospital_name:
-                return Response({'error': 'Hospital name is required for doctor activation.'}, status=status.HTTP_400_BAD_REQUEST)
+                hospital_address = user_data.get('address')
+                hospital_latitude = user_data.get('latitude')
+                hospital_longitude = user_data.get('longitude')
 
-            hospital, created = Hospital.objects.get_or_create(
-                name=hospital_name,
-                defaults={
-                    'address': hospital_address,
-                    'latitude': hospital_latitude,
-                    'longitude': hospital_longitude,
-                    'available_beds': 0,
-                }
-            )
+                # Create or retrieve hospital
+                hospital, created = Hospital.objects.get_or_create(
+                    name=hospital_name,
+                    defaults={
+                        'address': hospital_address,
+                        'latitude': hospital_latitude,
+                        'longitude': hospital_longitude,
+                        'available_beds': 0,
+                    }
+                )
 
-            doctor_data['hospital'] = hospital
+                doctor_data['hospital'] = hospital
 
-            # Create Doctor instance
-            Doctor.objects.create(**doctor_data)
+                # Create Doctor instance
+                Doctor.objects.create(**doctor_data)
 
+            # Cleanup: delete the activation entry after successful user creation
             activation_entry.delete()
 
             return Response({
@@ -265,6 +357,7 @@ class ActivationView(APIView):
         except Exception as e:
             logger.error(f"User creation failed: {str(e)}")
             return Response({'error': f'User creation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 User = get_user_model()
 
