@@ -65,10 +65,14 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
 class AppointmentSerializer(serializers.ModelSerializer):
     doctor_name = serializers.CharField(source='doctor.name', read_only=True)
     user_name = serializers.CharField(source='user.name', read_only=True)
+    hospital_name = serializers.CharField(source='doctor.hospital.name', read_only=True)
+    hospital_address = serializers.CharField(source='doctor.hospital.address', read_only=True)
+    specialization = serializers.CharField(source='doctor.specialization', read_only=True)
     
     class Meta:
         model = Appointment
-        fields = ['id', 'doctor', 'doctor_name', 'user', 'user_name', 'appointment_date', 'reason', 'created_at']
+        fields = ['id', 'doctor', 'doctor_name', 'user', 'user_name', 'appointment_date', 
+                'reason', 'created_at', 'hospital_name', 'hospital_address', 'specialization']
         read_only_fields = ['created_at']
 
 
