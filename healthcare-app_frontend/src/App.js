@@ -13,6 +13,8 @@ import DoctorDashboardPage from './components/AdminDashBoard/DoctorDashboardPage
 import About from './components/About';
 import DoctorFinder from './components/DoctorFinder';
 import Contact from './components/Contact';
+import Privacy from './components/Privacy';
+import Terms from './components/Terms';
 
 function App() {
   // Effect to handle initial auth check
@@ -51,6 +53,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         
         {/* Auth Routes - Redirect if already authenticated */}
         <Route path="/login" element={<PublicRoute><LoginForm /></PublicRoute>} />

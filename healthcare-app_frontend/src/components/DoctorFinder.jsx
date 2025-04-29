@@ -421,9 +421,11 @@ const DoctorFinder = () => {
       
       let connectionErrorMsg = 'Database connection failed.';
       
-      // Provide more detailed error messages based on the error type
+      // Only show dummy data for connection-related errors
       if (err.message && err.message.includes('Network Error')) {
         connectionErrorMsg = 'Network error: Unable to connect to the database server. Please check if the backend server is running.';
+        setAllDoctors(DUMMY_DOCTORS);
+        setUsingDummyData(true);
       } else if (err.response) {
         const status = err.response.status;
         if (status === 500) {
@@ -433,13 +435,19 @@ const DoctorFinder = () => {
         } else {
           connectionErrorMsg = `Database error: ${status} - ${err.response.statusText}`;
         }
+        // Don't show dummy data for HTTP errors
+        setAllDoctors([]);
       } else if (err.request) {
         connectionErrorMsg = 'No response received from database server. Server may be down.';
+        // Show dummy data for connection errors
+        setAllDoctors(DUMMY_DOCTORS);
+        setUsingDummyData(true);
+      } else {
+        connectionErrorMsg = 'An unexpected error occurred.';
+        setAllDoctors([]);
       }
       
       setDbStatus(connectionErrorMsg);
-      setAllDoctors(DUMMY_DOCTORS);
-      setUsingDummyData(true);
     }
   };
 
@@ -472,7 +480,8 @@ const DoctorFinder = () => {
         let apiUrl = `/recommend-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10`;
         
         if (userLatitude !== null && userLongitude !== null) {
-          apiUrl += `&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
+          // Use location-based recommendation endpoint if location is available
+          apiUrl = `/recommend-nearest-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
         }
 
         const response = await axiosInstance.get(apiUrl);
@@ -553,20 +562,21 @@ const DoctorFinder = () => {
       } else {
         setDbStatus(`Database error: ${status} - ${error.response.statusText}`);
       }
+      // Don't show dummy data for HTTP errors that aren't connection related
+      return;
     } else if (error.request) {
       setDbStatus('No response received from database server. Server may be down.');
+      // Only show dummy data for connection errors
+      setDoctors(DUMMY_DOCTORS.filter(doc => 
+        doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        doc.conditions_treated.some(condition => 
+          condition.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      ));
+      setUsingDummyData(true);
     } else {
       setDbStatus('An unexpected error occurred.');
     }
-
-    // Set to dummy data if database error
-    setDoctors(DUMMY_DOCTORS.filter(doc => 
-      doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.conditions_treated.some(condition => 
-        condition.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    ));
-    setUsingDummyData(true);
   };
 
   const handleSearch = (e) => {
@@ -1132,12 +1142,12 @@ const DoctorFinder = () => {
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Consultation Fee</p>
-                          <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr}</p>
+                          <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr > 0 ? doctor.consultation_fee_inr : 'N/A'}</p>
                         </div>
                       </div>
 
                       {/* Location */}
-                      {doctor.hospital && doctor.hospital.address && (
+                      {/* {doctor.hospital && doctor.hospital.address && (
                         <div className="flex items-center gap-2">
                           <div className="bg-gray-50 p-2 rounded-md">
                             <MdLocalHospital className="text-gray-600" />
@@ -1147,7 +1157,7 @@ const DoctorFinder = () => {
                             <p className="font-medium text-gray-900">{doctor.hospital.address}</p>
                           </div>
                         </div>
-                      )}
+                      )} */}
                     </div>
 
                     {/* Book Appointment button */}

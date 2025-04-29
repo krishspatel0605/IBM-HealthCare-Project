@@ -6,6 +6,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import HospitalSerializer
 from Doctor.models import Doctor
+import pandas as pd
+from recommendation_system.location_recommender import LocationBasedHospitalRecommender
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_hospitals(request):
     disease_query = request.GET.get('disease', '').strip().lower()
@@ -29,6 +34,41 @@ def get_hospitals(request):
     cache.set(cache_key, hospital_list, timeout=300)  # Cache for 5 minutes
 
     return JsonResponse(hospital_list, safe=False)
+
+@api_view(['GET'])
+def get_nearest_hospitals(request):
+    """
+    API endpoint to get nearest hospitals based on user location and optional specialization filter.
+    Query params:
+        user_latitude: float
+        user_longitude: float
+        specialization: str (optional)
+        limit: int (optional, default 10)
+    """
+    try:
+        user_latitude = float(request.GET.get('user_latitude'))
+        user_longitude = float(request.GET.get('user_longitude'))
+    except (TypeError, ValueError):
+        return Response({"error": "Invalid or missing user_latitude or user_longitude"}, status=status.HTTP_400_BAD_REQUEST)
+
+    specialization = request.GET.get('specialization', None)
+    limit = int(request.GET.get('limit', 10))
+
+    hospitals_qs = Hospital.objects.all()
+    if specialization:
+        hospitals_qs = hospitals_qs.filter(specialization__iexact=specialization)
+
+    hospitals_df = pd.DataFrame(list(hospitals_qs.values()))
+
+    recommender = LocationBasedHospitalRecommender(hospitals_df)
+    recommended_hospitals = recommender.recommend_hospitals(
+        user_latitude=user_latitude,
+        user_longitude=user_longitude,
+        specialization=specialization,
+        limit=limit
+    )
+
+    return Response(recommended_hospitals, status=status.HTTP_200_OK)
 
 def get_disease_options(request):
     """

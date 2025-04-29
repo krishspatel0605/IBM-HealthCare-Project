@@ -20,7 +20,15 @@ def save_model(model: Any, filepath: str) -> bool:
     try:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, 'wb') as f:
-            pickle.dump(model, f)
+            pickle.dump({
+                'classifier': model.classifier,
+                'feature_transformer': model.feature_transformer,
+                'mlb': model.mlb,
+                'doctors_df': model.doctors_df,
+                'numeric_features': model.numeric_features,
+                'categorical_features': model.categorical_features,
+                'n_estimators': model.n_estimators
+            }, f)
         logger.info(f"Model saved successfully to {filepath}")
         return True
     except Exception as e:
@@ -39,9 +47,11 @@ def load_model(filepath: str) -> Any:
     """
     try:
         with open(filepath, 'rb') as f:
-            model = pickle.load(f)
-        logger.info(f"Model loaded successfully from {filepath}")
-        return model
+            data = pickle.load(f)
+            
+        # Return the raw data dictionary
+        return data
+        
     except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
         return None
@@ -95,4 +105,4 @@ def get_model_path() -> str:
     """Get the path for saving/loading the model"""
     base_dir = Path(__file__).parent.parent
     models_dir = base_dir / 'models'
-    return str(models_dir / 'doctor_recommender.pkl') 
+    return str(models_dir / 'doctor_recommender.pkl')

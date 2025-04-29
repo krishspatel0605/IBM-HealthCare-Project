@@ -34,3 +34,29 @@ class Doctor(models.Model):
 
     def __str__(self):
         return f"Dr. {self.name} ({self.specialization})"
+
+    def save(self, *args, **kwargs):
+        # Ensure coordinates are updated when hospital changes
+        if self.hospital and (not self.hospital.latitude or not self.hospital.longitude):
+            from user_management.utils import get_coordinates_from_address
+            lat, lon = get_coordinates_from_address(self.hospital.address)
+            if lat and lon:
+                self.hospital.latitude = lat
+                self.hospital.longitude = lon
+                self.hospital.save()
+
+        # Ensure conditions_treated is always a list of lowercase strings
+        if self.conditions_treated:
+            if isinstance(self.conditions_treated, str):
+                self.conditions_treated = [c.strip().lower() for c in self.conditions_treated.split(',')]
+            else:
+                self.conditions_treated = [str(c).strip().lower() for c in self.conditions_treated]
+        else:
+            self.conditions_treated = []
+            
+        # Automatically add common conditions based on specialization
+        if self.specialization.lower() in ['pulmonology', 'respiratory medicine', 'chest medicine']:
+            common_conditions = ['asthma', 'copd', 'bronchitis', 'pneumonia']
+            self.conditions_treated = list(set(self.conditions_treated + common_conditions))
+            
+        super().save(*args, **kwargs)

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextField } from '@mui/material';
-import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus, FaMapMarkerAlt, FaUser } from 'react-icons/fa';
+import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus, FaMapMarkerAlt } from 'react-icons/fa';
 import { MdLocalHospital } from 'react-icons/md';
 import { Calendar, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -89,20 +89,28 @@ export default function UserHome() {
   const [error, setError] = useState(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [showAllAppointments, setShowAllAppointments] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [bookingDate, setBookingDate] = useState('');
   const [bookingReason, setBookingReason] = useState('');
   const [isBooking, setIsBooking] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [doctorsPerPage] = useState(4);
+  const [totalPages, setTotalPages] = useState(1);
 
   const fetchAppointments = async () => {
     try {
       const response = await axiosInstance.get('/user-appointments/');
-      if (response.data && response.data.appointments) {
-        setUpcomingAppointments(response.data.appointments);
+      if (response.data) {
+        // Filter to keep only upcoming appointments
+        const now = new Date();
+        const upcomingAppts = response.data.filter(appt => 
+          new Date(appt.appointment_date) > now
+        );
+        setUpcomingAppointments(upcomingAppts);
       } else {
-        // If no appointments or invalid format, set to empty array
         setUpcomingAppointments([]);
       }
     } catch (err) {
@@ -283,6 +291,11 @@ export default function UserHome() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    // Update total pages whenever filtered doctors changes
+    setTotalPages(Math.ceil(filteredDoctors.length / doctorsPerPage));
+  }, [filteredDoctors, doctorsPerPage]);
+
   const handleSearch = (e) => {
     if (searchQuery.trim()) {
       // Update URL without page navigation using history.replaceState
@@ -335,8 +348,7 @@ export default function UserHome() {
   const submitAppointment = async (e) => {
     e.preventDefault();
     if (!bookingDate) {
-      toast.error('Please select an appointment date and time');
-      alert('Please select an appointment date and time');
+      toast.error('Please select an appointment date');
       return;
     }
 
@@ -349,49 +361,29 @@ export default function UserHome() {
       });
 
       if (response.data) {
-        // Success window alert
-        alert('🎉 Appointment Booked Successfully!\n\nDoctor: ' + selectedDoctor.name + '\nDate: ' + new Date(bookingDate).toLocaleString() + (bookingReason ? '\nReason: ' + bookingReason : ''));
-        
-        // Success toast notifications
-        toast.success('🎉 Appointment Booked Successfully!', {
-          duration: 5000,
-          icon: '✅'
-        });
-        
-        toast.success(
-          `Appointment Details:\n
-          🏥 Doctor: ${selectedDoctor.name}\n
-          📅 Date: ${new Date(bookingDate).toLocaleString()}\n
-          ${bookingReason ? `📝 Reason: ${bookingReason}` : ''}`,
-          {
-            duration: 8000,
-            style: {
-              padding: '16px',
-            },
-          }
-        );
-
+        toast.success('Great! Your appointment has been successfully booked. A confirmation email will be sent shortly.');
         setShowBookingModal(false);
         setSelectedDoctor(null);
         setBookingDate('');
         setBookingReason('');
         fetchAppointments(); // Refresh the appointments list
+        
+        // Show appointment details in a more visible notification
+        toast.success(`Appointment Details:
+        Doctor: ${selectedDoctor.name}
+        Date: ${new Date(bookingDate).toLocaleString()}
+        ${bookingReason ? `Reason: ${bookingReason}` : ''}`);
       }
     } catch (error) {
-      // Error alerts
-      const errorMessage = error.response?.data?.error || 'Unable to book appointment. Please try again.';
-      alert('❌ Error: ' + errorMessage);
-      
-      toast.error(`❌ ${errorMessage}`, {
-        duration: 4000,
-        style: {
-          backgroundColor: '#FEE2E2',
-          color: '#DC2626'
-        }
-      });
+      toast.error(error.response?.data?.error || 'Failed to book appointment');
     } finally {
       setIsBooking(false);
     }
+  };
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (loading) {
@@ -622,13 +614,10 @@ export default function UserHome() {
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Experience</p>
-                            <p className="font-medium">{doctor.experience_years} years</p>
+                            <p className="font-medium">{doctor.experience_years}</p>
                           </div>
                         </div>
                         
-
-
-
                         {/* Rating */}
                         <div className="flex items-center gap-2">
                           <div className="bg-yellow-50 p-2 rounded-md">
@@ -653,16 +642,6 @@ export default function UserHome() {
                           </div>
                         </div>
                         
-                        { /* patient treated */}
-                        <div className="flex items-center gap-2">
-                          <div className="bg-green-50 p-2 rounded-md">
-                            <FaUser className="text-green-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Patients Treated</p>
-                            <p className="font-medium">{doctor.patients_treated || 'N/A'}</p>
-                          </div>
-                        </div>
                         {/* Fee */}
                         <div className="flex items-center gap-2">
                           <div className="bg-purple-50 p-2 rounded-md">
@@ -758,54 +737,56 @@ export default function UserHome() {
                 </h2>
                 <div className="space-y-4">
                   {upcomingAppointments.length > 0 ? (
-                    upcomingAppointments.map((appointment) => (
-                      <div 
+                    (showAllAppointments ? upcomingAppointments : upcomingAppointments.slice(0, 5)).map(appointment => (
+                      <motion.div 
                         key={appointment.id}
-                        className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                        whileHover={{ scale: 1.02 }}
+                        className="p-4 bg-blue-50 rounded-lg"
                       >
-                        <div className="flex justify-between items-start mb-2">
+                        <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-semibold text-lg">{appointment.doctor_name}</h3>
-                            <p className="text-gray-600">{appointment.specialization}</p>
+                            <h3 className="font-semibold">{appointment.doctor_name}</h3>
+                            <p className="text-sm text-gray-600">{appointment.specialization}</p>
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-sm ${
-                            appointment.status === 'confirmed' 
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            new Date(appointment.appointment_date) > new Date()
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-yellow-100 text-yellow-800'
                           }`}>
-                            {appointment.status}
+                            {new Date(appointment.appointment_date) > new Date() ? 'Upcoming' : 'Past'}
                           </span>
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <FaClock className="text-blue-600" />
-                            <span>{new Date(appointment.appointment_date).toLocaleString()}</span>
-                          </div>
-                          <div className="flex items-start gap-2 text-gray-600">
-                            <FaMapMarkerAlt className="text-blue-600 mt-1" />
-                            <div>
-                              <p className="font-medium">{appointment.hospital_name}</p>
-                              <p className="text-sm">{appointment.hospital_address}</p>
-                            </div>
-                          </div>
-                          {appointment.reason && (
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <FaStethoscope className="text-blue-600" />
-                              <span>Reason: {appointment.reason}</span>
-                            </div>
-                          )}
+                        <div className="mt-2 flex items-center text-sm text-gray-500">
+                          <Calendar size={14} className="mr-2" />
+                          {new Date(appointment.appointment_date).toLocaleString()}
                         </div>
-                      </div>
+                        {appointment.reason && (
+                          <div className="mt-2 text-sm text-gray-500">
+                            <span className="font-medium">Reason:</span> {appointment.reason}
+                          </div>
+                        )}
+                      </motion.div>
                     ))
                   ) : (
-                    <div className="text-center text-gray-500 py-4">
-                      No upcoming appointments
+                    <div className="text-center py-6">
+                      <p className="text-gray-500">No upcoming appointments</p>
+                      <button
+                        onClick={() => navigate('/find-doctor')}
+                        className="mt-4 text-blue-600 hover:text-blue-700 text-sm font-medium"
+                      >
+                        Book your first appointment
+                      </button>
                     </div>
                   )}
                 </div>
-                <button className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                  View All Appointments
-                </button>
+                {upcomingAppointments.length > 5 && (
+                  <button 
+                    onClick={() => setShowAllAppointments(!showAllAppointments)}
+                    className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    {showAllAppointments ? 'Show Less' : 'View All Appointments'}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -820,138 +801,170 @@ export default function UserHome() {
 
               {/* Display the filtered doctors */}
               <div className="grid md:grid-cols-2 gap-6">
-                {filteredDoctors.map((doctor) => (
-                  <div key={doctor.id} className="bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl">
-                    <div className="bg-blue-600 text-white p-4">
-                      <div className="flex items-start gap-2">
-                        <FaUserMd className="mt-1" />
-                        <div>
-                          <h3 className="text-xl font-bold">{doctor.name}</h3>
-                          <p className="text-lg">{doctor.specialization}</p>
-                          {doctor.hospital && typeof doctor.hospital === 'object' ? (
+                {filteredDoctors
+                  .slice((currentPage - 1) * doctorsPerPage, currentPage * doctorsPerPage)
+                  .map((doctor) => (
+                    <div key={doctor.id} className="bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl">
+                      <div className="bg-blue-600 text-white p-4">
+                        <div className="flex items-start gap-2">
+                          <FaUserMd className="mt-1" />
+                          <div>
+                            <h3 className="text-xl font-bold">{doctor.name}</h3>
+                            <p className="text-lg">{doctor.specialization}</p>
+                            {doctor.hospital && typeof doctor.hospital === 'object' ? (
+                              <div>
+                                <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                                  <MdLocalHospital className="text-blue-200" size={14} />
+                                  {doctor.hospital.name || ''}
+                                </p>
+                                <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                                  <FaMapMarkerAlt className="text-blue-200" size={14} />
+                                  {doctor.hospital.address || ''}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Experience */}
+                          <div className="flex items-center gap-2">
+                            <div className="bg-blue-50 p-2 rounded-md">
+                              <FaBriefcase className="text-blue-600" />
+                            </div>
                             <div>
-                              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
-                                <MdLocalHospital className="text-blue-200" size={14} />
-                                {doctor.hospital.name || ''}
-                              </p>
-                              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
-                                <FaMapMarkerAlt className="text-blue-200" size={14} />
-                                {doctor.hospital.address || ''}
+                              <p className="text-sm text-gray-500">Experience</p>
+                              <p className="font-medium text-gray-900">{doctor.experience_years}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Rating */}
+                          <div className="flex items-center gap-2">
+                            <div className="bg-yellow-50 p-2 rounded-md">
+                              <FaStar className="text-yellow-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">Rating</p>
+                              {doctor.rating ? (
+                                <div className="flex items-center gap-1">
+                                  <StarRating rating={doctor.rating} />
+                                </div>
+                              ) : (
+                                <p>No ratings</p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Availability */}
+                          <div className="flex items-center gap-2">
+                            <div className="bg-green-50 p-2 rounded-md">
+                              <FaClock className="text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">Availability</p>
+                              <p className="font-medium text-gray-900">
+                                {doctor.availability || (doctor.available ? 'Available' : 'Unavailable')}
                               </p>
                             </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* Experience */}
-                        <div className="flex items-center gap-2">
-                          <div className="bg-blue-50 p-2 rounded-md">
-                            <FaBriefcase className="text-blue-600" />
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Experience</p>
-                            <p className="font-medium text-gray-900">{doctor.experience_years} years</p>
-                          </div>
-                        </div>
-                        
-                        {/* Rating */}
-                        <div className="flex items-center gap-2">
-                          <div className="bg-yellow-50 p-2 rounded-md">
-                            <FaStar className="text-yellow-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Rating</p>
-                            {doctor.rating ? (
-                              <div className="flex items-center gap-1">
-                                <StarRating rating={doctor.rating} />
-                              </div>
-                            ) : (
-                              <p>No ratings</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <>
-                        <div className="flex items-center gap-2">
-                          <div className="bg-green-50 p-2 rounded-md">
-                            <FaUser className="text-green-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Patients Treated</p>
-                            <p className="font-medium text-gray-900">{doctor.patients_treated || 'N/A'}</p>
-                          </div>
-                        </div>
-                      </>
                           
-                        
-                        {/* Availability */}
-                        <div className="flex items-center gap-2">
-                          <div className="bg-green-50 p-2 rounded-md">
-                            <FaClock className="text-green-600" />
+                          {/* Fee */}
+                          <div className="flex items-center gap-2">
+                            <div className="bg-purple-50 p-2 rounded-md">
+                              <FaMoneyBillWave className="text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-500">Consultation Fee</p>
+                              <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr || doctor.fee || 'N/A'}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Availability</p>
-                            <p className="font-medium text-gray-900">
-                              {doctor.availability || (doctor.available ? 'Available' : 'Unavailable')}
+                        </div>
+                        
+                        {/* Conditions treated */}
+                        {doctor.conditions_treated && (
+                          <div className="mt-5">
+                            <p className="text-sm flex items-center gap-1 font-medium text-green-700">
+                              <FaStethoscope size={12} /> Specializes in treating:
                             </p>
+                            <div className="mt-1">
+                              {Array.isArray(doctor.conditions_treated) 
+                                ? doctor.conditions_treated.map((condition, index) => (
+                                  <span 
+                                    key={index} 
+                                    className="inline-block mr-2 mb-2 px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
+                                  >
+                                    {condition}
+                                  </span>
+                                ))
+                                : (
+                                  <span 
+                                    className="inline-block mr-2 mb-2 px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
+                                  >
+                                    {doctor.conditions_treated.toString()}
+                                  </span>
+                                )
+                              }
+                            </div>
                           </div>
-                        </div>
+                        )}
                         
-                        {/* Fee */}
-                        <div className="flex items-center gap-2">
-                          <div className="bg-purple-50 p-2 rounded-md">
-                            <FaMoneyBillWave className="text-purple-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Consultation Fee</p>
-                            <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr || doctor.fee || 'N/A'}</p>
-                          </div>
-                        </div>
+                        {/* Book Appointment button */}
+                        <button
+                          onClick={() => handleBookAppointment(doctor.id)}
+                          className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <FaPhoneAlt size={14} />
+                          Book Appointment
+                        </button>
                       </div>
-                      
-                      {/* Conditions treated */}
-                      {doctor.conditions_treated && (
-                        <div className="mt-5">
-                          <p className="text-sm flex items-center gap-1 font-medium text-green-700">
-                            <FaStethoscope size={12} /> Specializes in treating:
-                          </p>
-                          <div className="mt-1">
-                            {Array.isArray(doctor.conditions_treated) 
-                              ? doctor.conditions_treated.map((condition, index) => (
-                                <span 
-                                  key={index} 
-                                  className="inline-block mr-2 mb-2 px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
-                                >
-                                  {condition}
-                                </span>
-                              ))
-                              : (
-                                <span 
-                                  className="inline-block mr-2 mb-2 px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700"
-                                >
-                                  {doctor.conditions_treated.toString()}
-                                </span>
-                              )
-                            }
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Book Appointment button */}
-                      <button
-                        onClick={() => handleBookAppointment(doctor.id)}
-                        className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                      >
-                        <FaPhoneAlt size={14} />
-                        Book Appointment
-                      </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
+
+              {/* Pagination Controls */}
+              {filteredDoctors.length > doctorsPerPage && (
+                <div className="flex justify-center mt-8 gap-2">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className={`px-4 py-2 rounded-lg ${
+                      currentPage === 1
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  
+                  {[...Array(totalPages)].map((_, index) => (
+                    <button
+                      key={index + 1}
+                      onClick={() => handlePageChange(index + 1)}
+                      className={`px-4 py-2 rounded-lg ${
+                        currentPage === index + 1
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-blue-600 hover:bg-blue-50'
+                      }`}
+                    >
+                      {index + 1}
+                    </button>
+                  ))}
+                  
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className={`px-4 py-2 rounded-lg ${
+                      currentPage === totalPages
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
