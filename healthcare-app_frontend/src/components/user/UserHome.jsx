@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextField } from '@mui/material';
-import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaUserMd, FaStethoscope, FaRegCalendarCheck, FaPhoneAlt, FaFirstAid, FaClinicMedical, FaSearch, FaStar, FaStarHalfAlt, FaRegStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPlus, FaMapMarkerAlt, FaUser } from 'react-icons/fa';
 import { MdLocalHospital } from 'react-icons/md';
 import { Calendar, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -622,10 +622,13 @@ export default function UserHome() {
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Experience</p>
-                            <p className="font-medium">{doctor.experience} years</p>
+                            <p className="font-medium">{doctor.experience_years} years</p>
                           </div>
                         </div>
                         
+
+
+
                         {/* Rating */}
                         <div className="flex items-center gap-2">
                           <div className="bg-yellow-50 p-2 rounded-md">
@@ -650,6 +653,16 @@ export default function UserHome() {
                           </div>
                         </div>
                         
+                        { /* patient treated */}
+                        <div className="flex items-center gap-2">
+                          <div className="bg-green-50 p-2 rounded-md">
+                            <FaUser className="text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Patients Treated</p>
+                            <p className="font-medium">{doctor.patients_treated || 'N/A'}</p>
+                          </div>
+                        </div>
                         {/* Fee */}
                         <div className="flex items-center gap-2">
                           <div className="bg-purple-50 p-2 rounded-md">
@@ -840,7 +853,7 @@ export default function UserHome() {
                           </div>
                           <div>
                             <p className="text-sm text-gray-500">Experience</p>
-                            <p className="font-medium text-gray-900">{doctor.experience} years</p>
+                            <p className="font-medium text-gray-900">{doctor.experience_years} years</p>
                           </div>
                         </div>
                         
@@ -860,6 +873,19 @@ export default function UserHome() {
                             )}
                           </div>
                         </div>
+
+                        <>
+                        <div className="flex items-center gap-2">
+                          <div className="bg-green-50 p-2 rounded-md">
+                            <FaUser className="text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Patients Treated</p>
+                            <p className="font-medium text-gray-900">{doctor.patients_treated || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </>
+                          
                         
                         {/* Availability */}
                         <div className="flex items-center gap-2">
