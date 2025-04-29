@@ -489,56 +489,57 @@ def book_appointment(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
 def doctor_appointments(request):
     """
     Get all appointments for the logged-in doctor
     """
     try:
-        # Log the user info for debugging
-        logger.debug(f"doctor_appointments called by user: {request.user}, authenticated: {request.user.is_authenticated}")
-        logger.debug(f"User mobile_number: {getattr(request.user, 'mobile_number', 'No mobile_number attribute')}")
-        
-        # Get the doctor associated with the logged-in user
+        user = request.user
+        print(f"Fetching appointments for user: {user.email} with role: {user.role}")
+        if user.role != 'doctor':
+            return Response({
+                'error': 'Only doctors can access this endpoint'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         try:
-            doctor = Doctor.objects.get(mobile_number=request.user.mobile_number)
+            doctor = Doctor.objects.get(mobile_number=user.mobile_number)
+            print(f"Found doctor: {doctor.name} with id: {doctor.id}")
         except Doctor.DoesNotExist:
-            logger.warning(f"Doctor profile not found for user mobile_number: {request.user.mobile_number}. Creating new profile.")
-            # Get or create a default hospital
-            from hospital.models import Hospital
-            hospital = Hospital.objects.first()
-            if not hospital:
-                hospital = Hospital.objects.create(
-                    name="Default Hospital",
-                    specialization="General",
-                    address="Default Address",
-                    latitude=0.0,
-                    longitude=0.0,
-                    available_beds=0,
-                    diseases_treated=[]
-                )
-            # Create a new Doctor profile with default specialization and required fields
-            doctor = Doctor.objects.create(
-                name=request.user.name,
-                mobile_number=request.user.mobile_number,
-                specialization="General",
-                consultation_fee_inr=0,
-                hospital=hospital
-            )
-        
-        logger.debug(f"Found doctor: {doctor.name} with mobile_number: {doctor.mobile_number}")
-        
-        # Get all appointments for this doctor
-        appointments = Appointment.objects.filter(doctor=doctor).order_by('appointment_date')
-        
-        # Serialize and return appointments
-        serializer = AppointmentSerializer(appointments, many=True)
-        return Response(serializer.data)
-        
+            print(f"No doctor found for user with mobile: {user.mobile_number}")
+            return Response({
+                'error': 'Doctor profile not found. Please complete your doctor profile first.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        appointments = Appointment.objects.filter(doctor=doctor).select_related('user').order_by('appointment_date')
+        print(f"Found {appointments.count()} appointments")
+
+        now = timezone.now()
+        appointment_data = []
+
+        for appointment in appointments:
+            is_upcoming = appointment.appointment_date > now
+            data = {
+                'id': appointment.id,
+                'appointment_date': appointment.appointment_date,
+                'reason': appointment.reason,
+                'created_at': appointment.created_at,
+                'user_name': appointment.user.name,  # Using the name field directly
+                'user_email': appointment.user.email,
+                'user_mobile': appointment.user.mobile_number,
+                'status': 'Upcoming' if is_upcoming else 'Past'
+            }
+            appointment_data.append(data)
+
+        print(f"Returning {len(appointment_data)} appointments")
+        return Response(appointment_data)
+
     except Exception as e:
-        logger.error(f"Error in doctor_appointments: {str(e)}")
+        print(f"Error fetching appointments: {str(e)}")
         return Response({
-            'error': str(e)
-        }, status=status.HTTP_400_BAD_REQUEST)
+            'error': f'Failed to fetch appointments: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserAppointmentsView(APIView):
     authentication_classes = [JWTAuthentication]

@@ -61,7 +61,7 @@ const DoctorHome = () => {
             <tbody>
               {appointments.map((appt) => (
                 <tr key={appt.id} className="border-b border-gray-200 hover:bg-gray-100">
-                  <td className="py-3 px-6">{appt.user ? appt.user.name || appt.user.email : 'Unknown'}</td>
+                  <td className="py-3 px-6">{appt.user_name || appt.user_email || 'Unknown'}</td>
                   <td className="py-3 px-6">{new Date(appt.appointment_date).toLocaleString()}</td>
                   <td className="py-3 px-6">{appt.reason || 'N/A'}</td>
                   <td className="py-3 px-6">{appt.status || 'Pending'}</td>

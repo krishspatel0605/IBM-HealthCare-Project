@@ -1,15 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { FaUserMd } from 'react-icons/fa';
-import { LogOut, User as UserIcon, Settings, Bell, LayoutDashboard, Calendar, Users, MessageSquare } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import axiosInstance from '../../utils/axiosInstance';
 import { toast } from 'react-toastify';
-
-// Import Dashboard Components
-import { StatCard } from './StatCard';
-import { UpcomingAppointments } from './UpcomingAppointments';
-import { AppointmentChart } from './AppointmentChart';
 
 export default function DoctorDashboardPage() {
   const navigate = useNavigate();
@@ -24,10 +17,20 @@ export default function DoctorDashboardPage() {
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
+    const role = localStorage.getItem('user_role');
+    
     if (!token) {
       navigate('/login');
       return;
     }
+
+    if (role !== 'doctor') {
+      navigate('/');
+      return;
+    }
+
+    // Make sure the axios instance has the token
+    axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     fetchAppointments();
   }, [navigate]);
 
@@ -35,17 +38,21 @@ export default function DoctorDashboardPage() {
     try {
       setLoading(true);
       const response = await axiosInstance.get('/doctor-appointments/');
-      if (response.data) {
+      console.log('Appointments response:', response.data);
+      
+      if (Array.isArray(response.data)) {
         setAppointments(response.data);
         
         // Calculate stats
-        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        
         const todayAppointments = response.data.filter(
-          app => app.appointment_date.startsWith(today)
+          app => new Date(app.appointment_date).toISOString().startsWith(today)
         ).length;
         
         const upcomingAppointments = response.data.filter(
-          app => new Date(app.appointment_date) > new Date()
+          app => new Date(app.appointment_date) > now
         ).length;
 
         setStats({
@@ -53,15 +60,14 @@ export default function DoctorDashboardPage() {
           totalAppointments: response.data.length,
           upcomingAppointments
         });
+      } else {
+        throw new Error('Invalid response format');
       }
     } catch (err) {
-      if (err.response && err.response.status === 404) {
-        setError('No appointments found for the logged-in doctor.');
-        toast.error('No appointments found for the logged-in doctor.');
-      } else {
-        setError('Failed to fetch appointments. Please try again later.');
-        toast.error('Failed to load appointments');
-      }
+      console.error('Error fetching appointments:', err);
+      const errorMessage = err.response?.data?.error || 'Failed to load appointments';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -73,30 +79,6 @@ export default function DoctorDashboardPage() {
     localStorage.removeItem('user_role');
     navigate('/login', { replace: true });
   };
-
-  const quickStats = [
-    { 
-      title: "Today's Appointments", 
-      value: stats.todayAppointments, 
-      icon: <Calendar />, 
-      color: "blue", 
-      description: "Scheduled for today" 
-    },
-    { 
-      title: "Upcoming Appointments", 
-      value: stats.upcomingAppointments, 
-      icon: <MessageSquare />, 
-      color: "yellow", 
-      description: "Next 7 days" 
-    },
-    { 
-      title: "Total Appointments", 
-      value: stats.totalAppointments, 
-      icon: <Users />, 
-      color: "green", 
-      description: "All Time" 
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -115,14 +97,25 @@ export default function DoctorDashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {quickStats.map((stat, index) => (
-            <StatCard key={index} {...stat} />
-          ))}
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-600">Today's Appointments</h3>
+            <p className="text-3xl font-bold mt-2">{stats.todayAppointments}</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-semibold text-green-600">Upcoming Appointments</h3>
+            <p className="text-3xl font-bold mt-2">{stats.upcomingAppointments}</p>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-semibold text-purple-600">Total Appointments</h3>
+            <p className="text-3xl font-bold mt-2">{stats.totalAppointments}</p>
+          </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Upcoming Appointments</h2>
+        {/* Appointments Table */}
+        <div className="bg-white shadow-sm rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">All Appointments</h2>
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -140,6 +133,9 @@ export default function DoctorDashboardPage() {
                       Patient Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Date & Time
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -153,12 +149,18 @@ export default function DoctorDashboardPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {appointments.map((appointment) => (
                     <tr key={appointment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900">
                           {appointment.user_name}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4">
+                        <div className="text-sm">
+                          <div className="text-gray-900">{appointment.user_email}</div>
+                          <div className="text-gray-500">{appointment.user_mobile}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
                           {new Date(appointment.appointment_date).toLocaleString()}
                         </div>
@@ -170,11 +172,11 @@ export default function DoctorDashboardPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          new Date(appointment.appointment_date) > new Date()
+                          appointment.status === 'Upcoming'
                             ? 'bg-green-100 text-green-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {new Date(appointment.appointment_date) > new Date() ? 'Upcoming' : 'Past'}
+                          {appointment.status}
                         </span>
                       </td>
                     </tr>
