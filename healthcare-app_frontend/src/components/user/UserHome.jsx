@@ -335,7 +335,8 @@ export default function UserHome() {
   const submitAppointment = async (e) => {
     e.preventDefault();
     if (!bookingDate) {
-      toast.error('Please select an appointment date');
+      toast.error('Please select an appointment date and time');
+      alert('Please select an appointment date and time');
       return;
     }
 
@@ -348,21 +349,46 @@ export default function UserHome() {
       });
 
       if (response.data) {
-        toast.success('Great! Your appointment has been successfully booked. A confirmation email will be sent shortly.');
+        // Success window alert
+        alert('🎉 Appointment Booked Successfully!\n\nDoctor: ' + selectedDoctor.name + '\nDate: ' + new Date(bookingDate).toLocaleString() + (bookingReason ? '\nReason: ' + bookingReason : ''));
+        
+        // Success toast notifications
+        toast.success('🎉 Appointment Booked Successfully!', {
+          duration: 5000,
+          icon: '✅'
+        });
+        
+        toast.success(
+          `Appointment Details:\n
+          🏥 Doctor: ${selectedDoctor.name}\n
+          📅 Date: ${new Date(bookingDate).toLocaleString()}\n
+          ${bookingReason ? `📝 Reason: ${bookingReason}` : ''}`,
+          {
+            duration: 8000,
+            style: {
+              padding: '16px',
+            },
+          }
+        );
+
         setShowBookingModal(false);
         setSelectedDoctor(null);
         setBookingDate('');
         setBookingReason('');
         fetchAppointments(); // Refresh the appointments list
-        
-        // Show appointment details in a more visible notification
-        toast.success(`Appointment Details:
-        Doctor: ${selectedDoctor.name}
-        Date: ${new Date(bookingDate).toLocaleString()}
-        ${bookingReason ? `Reason: ${bookingReason}` : ''}`);
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to book appointment');
+      // Error alerts
+      const errorMessage = error.response?.data?.error || 'Unable to book appointment. Please try again.';
+      alert('❌ Error: ' + errorMessage);
+      
+      toast.error(`❌ ${errorMessage}`, {
+        duration: 4000,
+        style: {
+          backgroundColor: '#FEE2E2',
+          color: '#DC2626'
+        }
+      });
     } finally {
       setIsBooking(false);
     }
@@ -731,31 +757,51 @@ export default function UserHome() {
                   Upcoming Appointments
                 </h2>
                 <div className="space-y-4">
-                  {upcomingAppointments.map(appointment => (
-                    <motion.div 
-                      key={appointment.id}
-                      whileHover={{ scale: 1.02 }}
-                      className="p-4 bg-blue-50 rounded-lg"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold">{appointment.doctor}</h3>
-                          <p className="text-sm text-gray-600">{appointment.specialization}</p>
+                  {upcomingAppointments.length > 0 ? (
+                    upcomingAppointments.map((appointment) => (
+                      <div 
+                        key={appointment.id}
+                        className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h3 className="font-semibold text-lg">{appointment.doctor_name}</h3>
+                            <p className="text-gray-600">{appointment.specialization}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-sm ${
+                            appointment.status === 'confirmed' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {appointment.status}
+                          </span>
                         </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          appointment.status === 'confirmed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {appointment.status}
-                        </span>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <FaClock className="text-blue-600" />
+                            <span>{new Date(appointment.appointment_date).toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-start gap-2 text-gray-600">
+                            <FaMapMarkerAlt className="text-blue-600 mt-1" />
+                            <div>
+                              <p className="font-medium">{appointment.hospital_name}</p>
+                              <p className="text-sm">{appointment.hospital_address}</p>
+                            </div>
+                          </div>
+                          {appointment.reason && (
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <FaStethoscope className="text-blue-600" />
+                              <span>Reason: {appointment.reason}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-2 flex items-center text-sm text-gray-500">
-                        <Calendar size={14} className="mr-2" />
-                        {appointment.date} • {appointment.time}
-                      </div>
-                    </motion.div>
-                  ))}
+                    ))
+                  ) : (
+                    <div className="text-center text-gray-500 py-4">
+                      No upcoming appointments
+                    </div>
+                  )}
                 </div>
                 <button className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors">
                   View All Appointments

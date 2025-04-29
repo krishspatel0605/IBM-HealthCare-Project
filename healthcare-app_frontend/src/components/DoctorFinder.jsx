@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt, FaMapMarkerAlt } from 'react-icons/fa';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt, FaMapMarkerAlt, FaArrowLeft } from 'react-icons/fa';
 import { MdLocalHospital, MdAccountCircle } from 'react-icons/md';
 import { toast } from 'react-toastify';
 import _ from 'lodash';
@@ -646,7 +646,8 @@ const DoctorFinder = () => {
   const submitAppointment = async (e) => {
     e.preventDefault();
     if (!bookingDate) {
-      toast.error('Please select an appointment date');
+      toast.error('Please select an appointment date and time');
+      alert('Please select an appointment date and time');
       return;
     }
 
@@ -659,14 +660,27 @@ const DoctorFinder = () => {
       });
 
       if (response.data) {
-        // First success message
-        toast.success('Great! Your appointment has been successfully booked. A confirmation email will be sent shortly.');
+        // Success alerts
+        alert('🎉 Appointment Booked Successfully!\n\nDoctor: ' + selectedDoctor.name + '\nDate: ' + new Date(bookingDate).toLocaleString() + (bookingReason ? '\nReason: ' + bookingReason : ''));
         
-        // Show a second toast with appointment details
-        toast.success(`Appointment Details:
-        Doctor: ${selectedDoctor.name}
-        Date: ${new Date(bookingDate).toLocaleString()}
-        ${bookingReason ? `Reason: ${bookingReason}` : ''}`);
+        // Toast notifications
+        toast.success('🎉 Appointment Booked Successfully!', {
+          duration: 5000,
+          icon: '✅'
+        });
+        
+        toast.success(
+          `Appointment Details:\n
+          🏥 Doctor: ${selectedDoctor.name}\n
+          📅 Date: ${new Date(bookingDate).toLocaleString()}\n
+          ${bookingReason ? `📝 Reason: ${bookingReason}` : ''}`,
+          {
+            duration: 8000,
+            style: {
+              padding: '16px',
+            },
+          }
+        );
         
         setShowBookingModal(false);
         setSelectedDoctor(null);
@@ -674,7 +688,17 @@ const DoctorFinder = () => {
         setBookingReason('');
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to book appointment');
+      // Error alerts
+      const errorMessage = error.response?.data?.error || 'Unable to book appointment. Please try again.';
+      alert('❌ Error: ' + errorMessage);
+      
+      toast.error(`❌ ${errorMessage}`, {
+        duration: 4000,
+        style: {
+          backgroundColor: '#FEE2E2',
+          color: '#DC2626'
+        }
+      });
     } finally {
       setIsBooking(false);
     }
@@ -759,79 +783,15 @@ const DoctorFinder = () => {
           )}
         </div>
 
-        {/* User welcome section (only if logged in) */}
-        {isLoggedIn && userData && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <MdAccountCircle className="text-blue-600 text-2xl" />
-                </div>
-                <div className="ml-4">
-                  <h2 className="text-xl font-semibold">Welcome, {userData.first_name || 'User'}</h2>
-                  <p className="text-gray-600">Find the right specialist for your healthcare needs</p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Recent searches */}
-            {recentSearches.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  <FaHistory className="mr-2 text-gray-500" /> Your Recent Searches:
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {recentSearches.map((search, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setSearchQuery(search);
-                        // Remove navigation, just update URL and perform search
-                        const url = new URL(window.location);
-                        url.searchParams.set('query', search);
-                        window.history.replaceState({}, '', url);
-                        performSearch(search);
-                        setSearchPerformed(true);
-                      }}
-                      className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-sm transition-colors"
-                    >
-                      {search}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Recommended conditions based on user profile */}
-            {recommendedConditions.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  <FaInfoCircle className="mr-2 text-blue-500" /> Recommended for you:
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {recommendedConditions.map((condition, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setSearchQuery(condition);
-                        // Remove navigation, just update URL and perform search
-                        const url = new URL(window.location);
-                        url.searchParams.set('query', condition);
-                        window.history.replaceState({}, '', url);
-                        performSearch(condition);
-                        setSearchPerformed(true);
-                      }}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm transition-colors flex items-center"
-                    >
-                      <MdLocalHospital className="mr-1 text-blue-600" size={14} />
-                      {condition}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-4 mb-6">
+          <Link
+            to="/userhome"
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            <FaArrowLeft size={20} />
+            Back to Home
+          </Link>
+        </div>
 
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl">
           <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
