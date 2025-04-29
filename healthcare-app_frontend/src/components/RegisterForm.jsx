@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import healthcareImage from '../assets/healthcare.jpg';
-import { FaUser, FaLock, FaEnvelope, FaPhone, FaCheckCircle, FaExclamationTriangle } from 'react-icons/fa';
+import { FaUser, FaLock, FaEnvelope, FaPhone, FaCheckCircle, FaExclamationTriangle, FaRupeeSign , FaMapMarkerAlt , FaCalendar } from 'react-icons/fa';
 import { RiEyeFill, RiEyeOffFill, RiShieldUserFill } from 'react-icons/ri';
 import { MdPassword } from 'react-icons/md';
+import {  ClockIcon, HospitalIcon, Stethoscope } from 'lucide-react';
 
 const RegisterForm = () => {
   const navigate = useNavigate();
@@ -91,7 +92,8 @@ const RegisterForm = () => {
         formData.specialization && 
         formData.experience > 0 &&
         formData.consultation_fee_inr > 0 &&
-        formData.conditions_treated
+        formData.conditions_treated &&
+        formData.patients_treated
       )) &&
       formData.password.length >= 6 &&
       formData.password === formData.confirmPassword
@@ -116,6 +118,7 @@ const RegisterForm = () => {
       if (!formData.availability) validationErrors.availability = 'Availability is required.';
       if (formData.consultation_fee_inr <= 0) validationErrors.consultation_fee_inr = 'Consultation fee must be greater than 0.';
       if (!formData.conditions_treated) validationErrors.conditions_treated = 'Conditions treated must be specified.';
+      if (formData.patients_treated <= 0) validationErrors.patients_treated = 'Patients treated must be greater than 0.';
     }
 
     if (!formData.address) validationErrors.address = 'Address is required.';
@@ -144,7 +147,9 @@ const RegisterForm = () => {
         experience: formData.experience,
         availability: formData.availability,
         consultation_fee_inr: formData.consultation_fee_inr,
-        conditions_treated: formData.conditions_treated
+        conditions_treated: formData.conditions_treated,
+        patients_treated: formData.patients_treated,
+
       })
     };
 
@@ -210,66 +215,82 @@ const RegisterForm = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">First Name</label>
+                <div className="relative">
+                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   placeholder="First Name"
                 />
                 {errors.first_name && <div className="text-red-500 text-sm">{errors.first_name}</div>}
               </div>
+              </div>
 
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">Last Name</label>
+                <div className="relative">
+                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+
                 <input
                   type="text"
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   placeholder="Last Name"
                 />
                 {errors.last_name && <div className="text-red-500 text-sm">{errors.last_name}</div>}
               </div>
             </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">Email</label>
+                <div className="relative">
+                  <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                   placeholder="Email"
                 />
                                 {errors.email && <div className="text-red-500 text-sm">{errors.email}</div>}
               </div>
+              </div>
 
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">Mobile Number</label>
+                <div className="relative">
+                  <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
                   name="mobileNumber"
                   value={formData.mobileNumber}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
-                  placeholder="10-digit Mobile Number"
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Mobile Number"
                 />
                 {errors.mobileNumber && <div className="text-red-500 text-sm">{errors.mobileNumber}</div>}
               </div>
+              </div>
             </div>
+
 
             <div>
               <label className="block text-gray-700 mb-2 font-medium">Role</label>
+              <div className="relative">
+                <RiShieldUserFill className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <select
                 name="role"
                 value={formData.role}
                 onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
                 <option value="">Select Role</option>
                 <option value="user">User</option>
@@ -277,40 +298,48 @@ const RegisterForm = () => {
               </select>
               {errors.role && <div className="text-red-500 text-sm">{errors.role}</div>}
             </div>
+            </div>
 
             {formData.role === 'doctor' && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Hospital Name</label>
+                    <div className="relative">
+                      <HospitalIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
                       name="hospital_name"
                       value={formData.hospital_name}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="City Hospital"
-                    />
+                      />
                     {errors.hospital_name && <div className="text-red-500 text-sm">{errors.hospital_name}</div>}
+                  </div>
                   </div>
 
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Specialization</label>
+                    <div className="relative">
+                      <RiShieldUserFill className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
                       name="specialization"
                       value={formData.specialization}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="Cardiologist"
                     />
                     {errors.specialization && <div className="text-red-500 text-sm">{errors.specialization}</div>}
+                  </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Years of Experience</label>
+                    
                     <input
                       type="number"
                       name="experience"
@@ -325,87 +354,126 @@ const RegisterForm = () => {
 
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Consultation Fee (INR)</label>
+                    <div className="relative">
+                      <FaRupeeSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="number"
                       name="consultation_fee_inr"
                       value={formData.consultation_fee_inr}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="500"
                       min="1"
                     />
                     {errors.consultation_fee_inr && <div className="text-red-500 text-sm">{errors.consultation_fee_inr}</div>}
+                  </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Availability</label>
+                    <div className="relative">
+                      <ClockIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
                       name="availability"
                       value={formData.availability}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="Mon-Fri, 9AM-1PM"
                     />
                     {errors.availability && <div className="text-red-500 text-sm">{errors.availability}</div>}
                   </div>
+                  </div>
 
                   <div>
                     <label className="block text-gray-700 mb-2 font-medium">Conditions Treated</label>
+                    <div className="relative">
+                      <Stethoscope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                     <input
                       type="text"
-                      name="conditions_treated"
+                      name="conditions_treated" 
                       value={formData.conditions_treated}
                       onChange={handleChange}
-                      className="w-full p-3 border border-gray-300 rounded-lg"
+                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="Heart Disease, Diabetes"
-                    />
+                      />
                     {errors.conditions_treated && <div className="text-red-500 text-sm">{errors.conditions_treated}</div>}
                   </div>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+
+                    <label className="block text-gray-700 mb-2 font-medium">Patients Treated</label>
+                    <div className="relative">
+                      <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="number"
+                      name="patients_treated"
+                      value={formData.patients_treated}
+                      onChange={handleChange}
+                      className="ww-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      placeholder="100"
+                      min="1"
+                      />
+                    {errors.patients_treated && <div className="text-red-500 text-sm">{errors.patients_treated}</div>}
+                  </div>
+                  </div>
+                </div>
+
               </>
             )}
 
             <div>
               <label className="block text-gray-700 mb-2 font-medium">Address</label>
+              <div className="relative">
+                <FaMapMarkerAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                 placeholder="Full Address"
               />
               {errors.address && <div className="text-red-500 text-sm">{errors.address}</div>}
+            </div>
             </div>
 
             {formData.role === 'user' && (
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">Date of Birth</label>
+                <div className="relative">
+                  <FaCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="date"
                   name="date_of_birth"
                   value={formData.date_of_birth}
                   onChange={handleChange}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
-                />
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  />
                 {errors.date_of_birth && <div className="text-red-500 text-sm">{errors.date_of_birth}</div>}
+                  </div>
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-gray-700 mb-2 font-medium">Password</label>
+                  
+                <label className="block text-gray-700 mb-2 font-medium">Password</label> 
                 <div className="relative">
+                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg pr-10"
+                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                     placeholder="Password"
+
                   />
                   <button
                     type="button"
@@ -421,12 +489,14 @@ const RegisterForm = () => {
               <div>
                 <label className="block text-gray-700 mb-2 font-medium">Confirm Password</label>
                 <div className="relative">
+                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg pr-10"
+                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                     placeholder="Confirm Password"
                   />
                   <button

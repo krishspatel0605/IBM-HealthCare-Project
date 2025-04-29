@@ -38,7 +38,8 @@ class RegisterUserView(APIView):
         password = request.data.get("password")
         role = request.data.get("role", "user")
         address = request.data.get("address")
-        date_of_birth = request.data.get("date_of_birth")  # Optional field
+        date_of_birth = request.data.get("date_of_birth")
+        # Optional field
 
         # Get coordinates from address if provided
         latitude, longitude = None, None
@@ -69,6 +70,7 @@ class RegisterUserView(APIView):
             'date_of_birth': date_of_birth,
             'latitude': latitude,
             'longitude': longitude,
+              # Default value for doctor
         }
 
         if role == "doctor":
@@ -81,6 +83,7 @@ class RegisterUserView(APIView):
                 'availability': request.data.get("availability", "Available"),
                 'consultation_fee_inr': request.data.get("consultation_fee_inr", 0),
                 'hospital_name': request.data.get("hospital_name", "General Hospital"),
+                'patients_treated': request.data.get("patients_treated", 0),
                 'address': address,
                 'latitude': latitude,
                 'longitude': longitude
@@ -198,6 +201,7 @@ class ActivationView(APIView):
                 if role == 'doctor':
                     hospital_name = user_data.get('hospital_name', 'General Hospital')
                     address = user_data.get('address', '')
+                    
                     
                     try:
                         # Try to get existing hospital first
@@ -622,7 +626,7 @@ class SavedDoctorsView(APIView):
                     'id': doctor.id,
                     'name': doctor.name,
                     'specialization': doctor.specialization,
-                    'experience': doctor.experience,
+                    'experience_years': doctor.experience_years,
                     'mobile_number': doctor.mobile_number,
                     'rating': doctor.rating,
                     'availability': doctor.availability,

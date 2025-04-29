@@ -63,7 +63,7 @@ def Hospital_Details_View(request, id):
                 {
                     "name": doctor.name,
                     "specialization": doctor.specialization,
-                    "experience": doctor.experience,
+                    "experience_years": doctor.experience_years if hasattr(doctor, 'experience_years') else 0,
                     "availability": doctor.availability if hasattr(doctor, 'availability') else "10 AM - 5 PM",
                     "fee": doctor.consultation_fee_inr if hasattr(doctor, 'consultation_fee_inr') else 500
                 }
