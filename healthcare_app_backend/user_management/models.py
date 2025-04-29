@@ -4,7 +4,6 @@ from django.core.validators import EmailValidator, RegexValidator
 from django.core.exceptions import ValidationError
 import bleach  # Prevents XSS (Sanitizes text input)
 from django.conf import settings
-from Doctor.models import Doctor
 from django.utils.timezone import now, timedelta
 
 # Custom validator for name & address (prevents script injection)
@@ -61,14 +60,6 @@ class User(AbstractBaseUser, PermissionsMixin):
     latitude = models.CharField(max_length=50, null=True, blank=True)
     longitude = models.CharField(max_length=50, null=True, blank=True)
 
-    # Doctor-specific fields
-    # Removed doctor-specific fields to separate doctor data
-    # specialization = models.CharField(max_length=100, null=True, blank=True)
-    # experience = models.PositiveIntegerField(default=0, null=True, blank=True)
-    # availability = models.TextField(null=True, blank=True)
-    # patients_treated = models.PositiveIntegerField(default=0, null=True, blank=True)
-    # hospital_name = models.CharField(max_length=255, null=True, blank=True)
-
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
@@ -79,7 +70,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['name', 'mobile_number', 'date_of_birth', 'address', 'password', 'role']
+    REQUIRED_FIELDS = ['name', 'mobile_number', 'address', 'password', 'role']
 
     # Fix conflicts by changing related_name
     groups = models.ManyToManyField(
@@ -122,7 +113,7 @@ class UserSearch(models.Model):
 
 class SavedDoctor(models.Model):
     user = models.ForeignKey('User', on_delete=models.CASCADE, related_name='saved_doctors')
-    doctor = models.ForeignKey('Doctor.Doctor', on_delete=models.CASCADE)
+    doctor = models.ForeignKey('Doctor.Doctor', on_delete=models.CASCADE)  # Using string reference
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -140,7 +131,7 @@ class PasswordResetToken(models.Model):
 
 class Appointment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='appointments')
-    doctor = models.ForeignKey(Doctor, on_delete=models.CASCADE, related_name='appointments')
+    doctor = models.ForeignKey('Doctor.Doctor', on_delete=models.CASCADE, related_name='appointments')  # Using string reference
     appointment_date = models.DateTimeField()
     reason = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -149,4 +140,4 @@ class Appointment(models.Model):
         ordering = ['-appointment_date']
 
     def __str__(self):
-        return f"Appointment of {self.user.email} with Dr. {self.doctor.doctor_name} on {self.appointment_date}"
+        return f"Appointment for {self.user.email} on {self.appointment_date}"

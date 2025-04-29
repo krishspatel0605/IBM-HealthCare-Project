@@ -14,15 +14,15 @@ class Doctor(models.Model):
             )
         ]
     )
-    specialization = models.CharField(max_length=100, null=True, blank=True)
-    experience_years = models.PositiveIntegerField(default=0, null=True, blank=True)
-    availability = models.TextField(null=True, blank=True)
-    patients_treated = models.PositiveIntegerField(default=0, null=True, blank=True)
-    consultation_fee_inr = models.IntegerField()
+    specialization = models.CharField(max_length=100, default='General')
+    experience_years = models.PositiveIntegerField(default=0)
+    availability = models.TextField(default="10 AM - 7 PM")
+    consultation_fee_inr = models.PositiveIntegerField(default=500)
+    patients_treated = models.PositiveIntegerField(default=0)
     rating = models.FloatField(default=4.0)
-    conditions_treated = models.JSONField(default=list, blank=True, null=True)
+    conditions_treated = models.JSONField(default=list, blank=True)
     
-    # Hospital relationship
+    # Hospital relationship - allowing multiple doctors per hospital
     hospital = models.ForeignKey(
         Hospital, 
         on_delete=models.CASCADE, 
@@ -33,4 +33,4 @@ class Doctor(models.Model):
         db_table = 'doctors'
 
     def __str__(self):
-        return f"Dr. {self.name}"
+        return f"Dr. {self.name} ({self.specialization})"

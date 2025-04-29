@@ -6,8 +6,8 @@ from .views import (
     UserSearchesView,
     SavedDoctorsView,
     RecommendedConditionsView,
-    TestDoctorCreationView,
-    UserAppointmentsView,
+    # TestDoctorCreationView,
+    # UserAppointmentsView,
     ResendActivationOTPView,
     ResendLoginOTPView,
     ForgotPasswordView,
@@ -46,6 +46,6 @@ urlpatterns = [
     path('recommended-conditions/', RecommendedConditionsView.as_view(), name='recommended_conditions'),
     
     # Test endpoint
-    path('test-doctor-creation/', TestDoctorCreationView.as_view(), name='test_doctor_creation'),
+    # path('test-doctor-creation/', TestDoctorCreationView.as_view(), name='test_doctor_creation'),
 
 ]

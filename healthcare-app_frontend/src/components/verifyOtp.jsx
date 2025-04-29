@@ -24,6 +24,13 @@ const VerifyOTP = () => {
   const email = searchParams.get("email");
 
   useEffect(() => {
+    if (!token || !email) {
+      setError("Missing activation parameters. Please try registering again.");
+      setTimeout(() => navigate("/register"), 2000);
+    }
+  }, [token, email, navigate]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
@@ -58,40 +65,55 @@ const VerifyOTP = () => {
   };
 
   const handleVerify = async (otpCode) => {
-    if (!token || otpCode.length !== 6) {
+    if (!token || !email || otpCode.length !== 6) {
       setError("Please enter a valid 6-digit OTP.");
       return;
     }
 
-    setIsLoading(true); // Set loading state to true during API call
+    setIsLoading(true);
+    setError("");
+    setSuccess("");
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/activate/`, {
-        token,
-        otp: otpCode,
-        email,
-      });
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/activate/`,
+        {
+          token: token.trim(),
+          email_otp: otpCode.trim() // Match backend expected parameter name
+        }
+      );
 
       if (response.data.success) {
         setSuccess("✅ Account activated successfully!");
-        setError("");
+        // Clear any existing auth tokens
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user_role");
         setTimeout(() => navigate("/login"), 1500);
       } else {
-        setError(response.data.error || "Invalid OTP. Try again.");
-        setSuccess("");
+        setError(response.data.error || "Invalid OTP. Please try again.");
       }
-    } catch {
-      setError("Invalid OTP or expired token.");
-      setSuccess("");
-      // setTimeout(() => navigate("/register"), 2000);
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || "Invalid OTP or expired token.";
+      setError(errorMsg);
+      if (errorMsg.toLowerCase().includes("expired")) {
+        setTimeout(() => navigate("/register"), 2000);
+      }
     } finally {
-      setIsLoading(false); // Reset loading state after API call
+      setIsLoading(false);
     }
   };
 
   const handleResendOTP = async () => {
+    if (!email) {
+      setError("Email address is missing. Please try registering again.");
+      return;
+    }
+
     setTimer(30);
     setIsResendDisabled(true);
+    setError("");
+    setSuccess("");
   
     try {
       const response = await axios.post(
@@ -103,16 +125,14 @@ const VerifyOTP = () => {
           },
         }
       );
-      if (response.data.success) {
-        setSuccess("OTP resent successfully!");
-        setError("");
-        setIsResendDisabled(false);
+
+      if (response.data.message) {
+        setSuccess("✅ OTP resent successfully!");
       } else {
-        setError(response.data.error || "Failed to resend OTP. Try again.");
-        setIsResendDisabled(false);
+        throw new Error("Unexpected response");
       }
-    } catch {
-      setError("Failed to resend OTP. Try again.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to resend OTP. Please try again.");
       setIsResendDisabled(false);
     }
   };

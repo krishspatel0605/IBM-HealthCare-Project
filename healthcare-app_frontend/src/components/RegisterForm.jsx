@@ -94,8 +94,7 @@ const RegisterForm = () => {
         formData.conditions_treated
       )) &&
       formData.password.length >= 6 &&
-      formData.password === formData.confirmPassword &&
-      (formData.role !== 'user' || formData.date_of_birth)
+      formData.password === formData.confirmPassword
     );
   };
 
@@ -103,14 +102,13 @@ const RegisterForm = () => {
     e.preventDefault();
 
     let validationErrors = {};
-    if (!formData.firstName) validationErrors.first_name = 'First name is required.';
-    if (!formData.lastName) validationErrors.last_name = 'Last name is required.';
-    if (!formData.email.includes('@')) validationErrors.email = 'Enter a valid email.';
-    if (!formData.mobileNumber) validationErrors.mobile_number = 'Mobile number is required.';
-    if (formData.mobileNumber && (!/^\d+$/.test(formData.mobileNumber) || formData.mobileNumber.length !== 10))
-      validationErrors.mobile_number = 'Mobile number must be exactly 10 digits.';
-    if (formData.password.length < 6) validationErrors.password = 'Password must be at least 6 characters.';
-    if (formData.password !== formData.confirmPassword) validationErrors.confirm_password = 'Passwords do not match.';
+    if (!formData.email) validationErrors.email = 'Email is required.';
+    if (!formData.password) validationErrors.password = 'Password is required.';
+    if (!formData.confirmPassword) validationErrors.confirmPassword = 'Please confirm your password.';
+    if (formData.password !== formData.confirmPassword) validationErrors.confirmPassword = 'Passwords do not match.';
+    if (!formData.firstName || !formData.lastName) validationErrors.name = 'Name is required.';
+    if (!formData.mobileNumber) validationErrors.mobileNumber = 'Mobile number is required.';
+    
     if (formData.role === 'doctor') {
       if (!formData.specialization) validationErrors.specialization = 'Specialization is required for doctors.';
       if (!formData.hospital_name) validationErrors.hospital_name = 'Hospital name is required.';
@@ -119,9 +117,9 @@ const RegisterForm = () => {
       if (formData.consultation_fee_inr <= 0) validationErrors.consultation_fee_inr = 'Consultation fee must be greater than 0.';
       if (!formData.conditions_treated) validationErrors.conditions_treated = 'Conditions treated must be specified.';
     }
+
     if (!formData.address) validationErrors.address = 'Address is required.';
     if (!formData.role) validationErrors.role = 'Role is required.';
-    if (formData.role === 'user' && !formData.date_of_birth) validationErrors.date_of_birth = 'Date of birth is required.';
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -132,22 +130,22 @@ const RegisterForm = () => {
     const userData = {
       name: formData.firstName + ' ' + formData.lastName,
       email: formData.email,
-      mobile_number: formData.mobileNumber,
+      mobile_number: formData.mobileNumber,  // Keep as mobile_number for backend
       role: formData.role,
       password: formData.password,
       confirm_password: formData.confirmPassword,
       address: formData.address,
-      latitude: formData.latitude,
-      longitude: formData.longitude,
-      hospital_name: formData.hospital_name,
-      specialization: formData.specialization,
-      experience: formData.experience,
-      availability: formData.availability,
-      consultation_fee_inr: formData.consultation_fee_inr,
-      patients_treated: formData.patients_treated,
-      rating: formData.rating,
-      conditions_treated: formData.conditions_treated,
-      date_of_birth: formData.date_of_birth,
+      // date_of_birth is optional, only include if provided
+      ...(formData.date_of_birth && { date_of_birth: formData.date_of_birth }),
+      // Doctor-specific fields
+      ...(formData.role === 'doctor' && {
+        hospital_name: formData.hospital_name,
+        specialization: formData.specialization,
+        experience: formData.experience,
+        availability: formData.availability,
+        consultation_fee_inr: formData.consultation_fee_inr,
+        conditions_treated: formData.conditions_treated
+      })
     };
 
     try {
@@ -164,8 +162,9 @@ const RegisterForm = () => {
       if (err.response && err.response.data) {
         const backendError = err.response.data;
         setErrors({
+          ...errors,
           email: backendError.email,
-          mobile_number: backendError.mobile_number,
+          mobileNumber: backendError.mobile_number, // Match frontend field name
           general: backendError.error || 'Registration failed.',
         });
       } else {
@@ -260,7 +259,7 @@ const RegisterForm = () => {
                   className="w-full p-3 border border-gray-300 rounded-lg"
                   placeholder="10-digit Mobile Number"
                 />
-                {errors.mobile_number && <div className="text-red-500 text-sm">{errors.mobile_number}</div>}
+                {errors.mobileNumber && <div className="text-red-500 text-sm">{errors.mobileNumber}</div>}
               </div>
             </div>
 

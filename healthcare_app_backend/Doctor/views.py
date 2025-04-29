@@ -19,6 +19,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from rest_framework.decorators import authentication_classes, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 # Import the recommender components
 from recommendation_system.doctor_recommender import DoctorRecommender
@@ -364,23 +367,36 @@ def manage_doctor_profile(request, email=None):
 
 class DoctorRegistrationView(APIView):
     def post(self, request):
-        serializer = DoctorRegistrationSerializer(data=request.data)
+        # Add required fields if not present
+        data = request.data.copy()
+        if 'consultation_fee_inr' not in data:
+            data['consultation_fee_inr'] = 0
+        if 'experience_years' not in data:
+            data['experience_years'] = 0
+        if 'availability' not in data:
+            data['availability'] = "Available"
+        if 'specialization' not in data:
+            data['specialization'] = "General"
+
+        serializer = DoctorRegistrationSerializer(data=data)
         if serializer.is_valid():
             try:
                 doctor = serializer.save()
                 return Response({
                     'message': 'Doctor registered successfully',
-                    'doctor_id': doctor.id
+                    'doctor_id': doctor.id,
+                    'name': doctor.name,
+                    'specialization': doctor.specialization,
+                    'hospital': {
+                        'name': doctor.hospital.name,
+                        'address': doctor.hospital.address
+                    }
                 }, status=status.HTTP_201_CREATED)
             except Exception as e:
                 return Response({
-                    'error': str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
+                    'error': f'Failed to register doctor: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-from rest_framework.decorators import authentication_classes, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.authentication import JWTAuthentication
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])

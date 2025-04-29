@@ -31,9 +31,9 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'Doctor.apps.DoctorConfig',  # Make sure Doctor app is first due to dependencies
     'user_management',
     'hospital',
-    'Doctor',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -96,7 +96,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'Demo',
         'USER': 'postgres',
-        'PASSWORD': 'krish1023',
+        'PASSWORD': 'yash1009',
         'HOST': 'localhost',
         'PORT': '5432',
         }

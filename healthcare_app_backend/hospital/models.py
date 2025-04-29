@@ -11,6 +11,12 @@ class Hospital(models.Model):
     available_beds = models.IntegerField()
     diseases_treated = models.JSONField(default=list)  # Store related diseases as a list
 
+    class Meta:
+        # Add index on name for faster lookups
+        indexes = [
+            models.Index(fields=['name']),
+        ]
+
     def save(self, *args, **kwargs):
         # Update coordinates if address has changed
         if self.address:
@@ -22,24 +28,5 @@ class Hospital(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.address})"
-    
-class Doctor(models.Model):
-    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name='hospital_doctors', null=True, blank=True)
-    name = models.CharField(max_length=100)
-    specialization = models.CharField(max_length=100)
-    experience = models.IntegerField(default=0)  # Fixed the spelling from "experice" to "experience"
-    mobile_number = models.CharField(
-        max_length=10,
-        validators=[
-            RegexValidator(
-                regex=r'^\d{10}$',
-                message="Mobile number must be exactly 10 digits.",
-                code="invalid_mobile"
-            )
-        ]
-    )
-
-    def __str__(self):
-        return self.name
 
 

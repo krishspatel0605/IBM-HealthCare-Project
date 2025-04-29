@@ -1098,18 +1098,18 @@ const DoctorFinder = () => {
                       <div>
                         <h3 className="text-xl font-bold">{doctor.name}</h3>
                         <p className="text-lg">{doctor.specialization}</p>
-                        {doctor.hospital && (
-                          <div>
+                        {doctor.hospital && typeof doctor.hospital === 'object' ? (
+                          <div className="mt-2">
                             <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
                               <MdLocalHospital className="text-blue-200" size={14} />
-                              {doctor.hospital.name}
+                              {doctor.hospital.name || ''}
                             </p>
                             <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
                               <FaMapMarkerAlt className="text-blue-200" size={14} />
-                              {doctor.hospital.address}
+                              {doctor.hospital.address || ''}
                             </p>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </div>

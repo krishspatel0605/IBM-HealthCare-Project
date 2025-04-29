@@ -571,18 +571,18 @@ export default function UserHome() {
                         <div>
                           <h3 className="text-xl font-bold">{doctor.name}</h3>
                           <p>{doctor.specialization}</p>
-                          {doctor.hospital && (
+                          {doctor.hospital && typeof doctor.hospital === 'object' ? (
                             <div>
                               <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
                                 <MdLocalHospital className="text-blue-200" size={14} />
-                                {doctor.hospital.name}
+                                {doctor.hospital.name || ''}
                               </p>
                               <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
                                 <FaMapMarkerAlt className="text-blue-200" size={14} />
-                                {doctor.hospital.address}
+                                {doctor.hospital.address || ''}
                               </p>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -769,18 +769,18 @@ export default function UserHome() {
                         <div>
                           <h3 className="text-xl font-bold">{doctor.name}</h3>
                           <p className="text-lg">{doctor.specialization}</p>
-                          {doctor.hospital && (
+                          {doctor.hospital && typeof doctor.hospital === 'object' ? (
                             <div>
                               <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
                                 <MdLocalHospital className="text-blue-200" size={14} />
-                                {doctor.hospital.name}
+                                {doctor.hospital.name || ''}
                               </p>
                               <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
                                 <FaMapMarkerAlt className="text-blue-200" size={14} />
-                                {doctor.hospital.address}
+                                {doctor.hospital.address || ''}
                               </p>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </div>
