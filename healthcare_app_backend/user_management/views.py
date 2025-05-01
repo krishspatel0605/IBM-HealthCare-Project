@@ -2,16 +2,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import HealthcareUserSerializer, AppointmentSerializer
-from .models import User, UserSearch, SavedDoctor, Appointment
-from django.contrib.auth.hashers import check_password, make_password
-from rest_framework_simplejwt.tokens import RefreshToken
-from .permissions import IsUser, IsDoctor
-from django.contrib.auth import authenticate, get_user_model
-from Doctor.models import Doctor
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.decorators import authentication_classes, permission_classes
-import logging
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.conf import settings
 from django.shortcuts import get_object_or_404
@@ -19,10 +14,20 @@ from django.utils.timezone import now, timedelta
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from .models import ActivationToken, PasswordResetToken
-from .utils import get_coordinates_from_address
-from hospital.models import Hospital
 from django.db import transaction
+
+from .serializers import HealthcareUserSerializer, AppointmentSerializer
+from .models import (
+    User, UserSearch, SavedDoctor, Appointment, 
+    ActivationToken, PasswordResetToken
+)
+from .permissions import IsUser, IsDoctor
+from .utils import get_coordinates_from_address
+
+from Doctor.models import Doctor
+from hospital.models import Hospital
+
+import logging
 
 # Set up logging
 logger = logging.getLogger(__name__)

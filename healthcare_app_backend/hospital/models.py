@@ -1,5 +1,4 @@
 from django.db import models
-from django.core.validators import RegexValidator
 from user_management.utils import get_coordinates_from_address
 
 class Hospital(models.Model):
@@ -12,9 +11,8 @@ class Hospital(models.Model):
     diseases_treated = models.JSONField(default=list)  # Store related diseases as a list
 
     class Meta:
-        # Add index on name for faster lookups
         indexes = [
-            models.Index(fields=['name']),
+            models.Index(fields=['name']),  # Add index on name for faster lookups
         ]
 
     def save(self, *args, **kwargs):

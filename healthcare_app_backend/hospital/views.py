@@ -1,93 +1,145 @@
 from django.http import JsonResponse
-from .models import Hospital
-from django.core.cache import cache
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.cache import cache
+
+from .models import Hospital
 from .serializers import HospitalSerializer
 from Doctor.models import Doctor
-import pandas as pd
+
 from recommendation_system.location_recommender import LocationBasedHospitalRecommender
+
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+@api_view(['GET'])
 def get_hospitals(request):
-    disease_query = request.GET.get('disease', '').strip().lower()
-    
-    # Check cache first
-    cache_key = f"hospitals_{disease_query}" if disease_query else "hospitals_all"
-    cached_data = cache.get(cache_key)
-
-    if cached_data:
-        return JsonResponse(cached_data, safe=False)
-
-    # Filter hospitals based on disease query
-    if disease_query:
-        hospitals = Hospital.objects.filter(diseases_treated__icontains=disease_query)
-    else:
-        hospitals = Hospital.objects.all()
-    
-    hospital_list = list(hospitals.values("name", "specialization", "address", "available_beds"))
-
-    # Store result in cache
-    cache.set(cache_key, hospital_list, timeout=300)  # Cache for 5 minutes
-
-    return JsonResponse(hospital_list, safe=False)
+    """Get all hospitals or filter by specialization"""
+    try:
+        # Check cache first
+        cache_key = "all_hospitals"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            return JsonResponse(cached_data, safe=False)
+            
+        hospitals = Hospital.objects.all().select_related('doctors')
+        serializer = HospitalSerializer(hospitals, many=True)
+        
+        # Cache the response for 5 minutes
+        cache.set(cache_key, serializer.data, timeout=300)
+        
+        return JsonResponse(serializer.data, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Error fetching hospitals: {str(e)}")
+        return JsonResponse(
+            {"error": "Failed to fetch hospitals"}, 
+            status=500
+        )
 
 @api_view(['GET'])
 def get_nearest_hospitals(request):
-    """
-    API endpoint to get nearest hospitals based on user location and optional specialization filter.
-    Query params:
-        user_latitude: float
-        user_longitude: float
-        specialization: str (optional)
-        limit: int (optional, default 10)
-    """
+    """Get hospitals near a given location"""
     try:
-        user_latitude = float(request.GET.get('user_latitude'))
-        user_longitude = float(request.GET.get('user_longitude'))
-    except (TypeError, ValueError):
-        return Response({"error": "Invalid or missing user_latitude or user_longitude"}, status=status.HTTP_400_BAD_REQUEST)
+        user_latitude = float(request.GET.get('latitude', 0))
+        user_longitude = float(request.GET.get('longitude', 0))
+        max_distance = float(request.GET.get('max_distance_km', 20))
+        
+        # Initialize location-based recommender
+        recommender = LocationBasedHospitalRecommender()
+        
+        # Get all hospitals
+        hospitals = Hospital.objects.all().select_related('doctors')
+        
+        # Convert to list of dictionaries for the recommender
+        hospital_data = []
+        for hospital in hospitals:
+            data = {
+                'id': hospital.id,
+                'name': hospital.name,
+                'address': hospital.address,
+                'specialization': hospital.specialization,
+                'latitude': float(hospital.latitude),
+                'longitude': float(hospital.longitude),
+                'available_beds': hospital.available_beds,
+                'diseases_treated': hospital.diseases_treated,
+                'doctors': [
+                    {
+                        'name': doc.name,
+                        'specialization': doc.specialization
+                    }
+                    for doc in hospital.doctors.all()
+                ]
+            }
+            hospital_data.append(data)
+        
+        # Get recommendations
+        recommendations = recommender.recommend_hospitals(
+            user_latitude=user_latitude,
+            user_longitude=user_longitude,
+            max_distance_km=max_distance
+        )
+        
+        return JsonResponse({
+            'hospitals': recommendations,
+            'count': len(recommendations)
+        })
+        
+    except ValueError as e:
+        return JsonResponse(
+            {"error": "Invalid coordinate values"}, 
+            status=400
+        )
+    except Exception as e:
+        logger.error(f"Error finding nearest hospitals: {str(e)}")
+        return JsonResponse(
+            {"error": "Failed to find nearest hospitals"}, 
+            status=500
+        )
 
-    specialization = request.GET.get('specialization', None)
-    limit = int(request.GET.get('limit', 10))
-
-    hospitals_qs = Hospital.objects.all()
-    if specialization:
-        hospitals_qs = hospitals_qs.filter(specialization__iexact=specialization)
-
-    hospitals_df = pd.DataFrame(list(hospitals_qs.values()))
-
-    recommender = LocationBasedHospitalRecommender(hospitals_df)
-    recommended_hospitals = recommender.recommend_hospitals(
-        user_latitude=user_latitude,
-        user_longitude=user_longitude,
-        specialization=specialization,
-        limit=limit
-    )
-
-    return Response(recommended_hospitals, status=status.HTTP_200_OK)
-
+@api_view(['GET'])
 def get_disease_options(request):
-    """
-    Fetches a list of unique diseases treated by hospitals.
-    """
-    cache_key = "disease_options"
-    cached_data = cache.get(cache_key)
+    """Fetches a list of unique diseases treated by hospitals"""
+    try:
+        # Check cache first
+        cache_key = "disease_options"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data:
+            return JsonResponse(cached_data, safe=False)
+        
+        # Get all diseases from all hospitals
+        all_diseases = set()
+        hospitals = Hospital.objects.all()
+        
+        for hospital in hospitals:
+            if hospital.diseases_treated:
+                if isinstance(hospital.diseases_treated, list):
+                    all_diseases.update(hospital.diseases_treated)
+                else:
+                    all_diseases.add(hospital.diseases_treated)
+        
+        diseases_list = sorted(list(all_diseases))
+        
+        # Cache for 10 minutes
+        cache.set(cache_key, diseases_list, timeout=600)
+        
+        return JsonResponse(diseases_list, safe=False)
+        
+    except Exception as e:
+        logger.error(f"Error fetching disease options: {str(e)}")
+        return JsonResponse(
+            {"error": "Failed to fetch disease options"}, 
+            status=500
+        )
 
-    if cached_data:
-        return JsonResponse(cached_data, safe=False)
-
-    # Fetch unique diseases
-    diseases = Hospital.objects.values_list("diseases_treated", flat=True)
-    unique_diseases = sorted(set(disease for disease_list in diseases for disease in disease_list))
-
-    cache.set(cache_key, unique_diseases, timeout=600)  # Cache for 10 minutes
-    return JsonResponse(unique_diseases, safe=False)
-
+@api_view(['GET'])
 def Hospital_Details_View(request, id):
+    """Get detailed information about a specific hospital"""
     try:
         hospital = Hospital.objects.get(id=id)
         doctors = Doctor.objects.filter(hospital=hospital)
@@ -103,9 +155,9 @@ def Hospital_Details_View(request, id):
                 {
                     "name": doctor.name,
                     "specialization": doctor.specialization,
-                    "experience_years": doctor.experience_years if hasattr(doctor, 'experience_years') else 0,
-                    "availability": doctor.availability if hasattr(doctor, 'availability') else "10 AM - 5 PM",
-                    "fee": doctor.consultation_fee_inr if hasattr(doctor, 'consultation_fee_inr') else 500
+                    "experience_years": doctor.experience_years,
+                    "availability": doctor.availability,
+                    "fee": doctor.consultation_fee_inr
                 }
                 for doctor in doctors
             ]
@@ -116,6 +168,6 @@ def Hospital_Details_View(request, id):
         return JsonResponse({"error": "Hospital not found"}, status=404)
 
     except Exception as e:
-        print(f"Error: {e}")  # Debugging
-        return JsonResponse({"error": "Something went wrong!"}, status=500)
+        logger.error(f"Error fetching hospital details: {str(e)}")
+        return JsonResponse({"error": "Failed to fetch hospital details"}, status=500)
 

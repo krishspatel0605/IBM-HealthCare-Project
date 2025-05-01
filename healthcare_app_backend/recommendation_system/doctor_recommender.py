@@ -1,216 +1,195 @@
-from typing import List, Dict, Any, Union
-import numpy as np
 import pandas as pd
-import logging
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, MultiLabelBinarizer
-from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler, MultiLabelBinarizer
+from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-from sklearn.multioutput import MultiOutputClassifier
-from xgboost import XGBClassifier
-from collections import defaultdict
-from math import radians, cos, sin, asin, sqrt
+import pickle
+import logging
+from typing import List, Dict, Any, Optional, Union
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import os
+
+# Download required NLTK data
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('corpora/stopwords')
+    nltk.data.find('corpora/wordnet')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('wordnet')
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-
-import pickle
 
 class DoctorRecommender:
+    """A recommendation system for doctors based on conditions and specializations."""
+    
     def __init__(self, n_estimators: int = 100):
-        self.n_estimators = n_estimators
+        """Initialize the recommender system."""
         self.classifier = None
         self.feature_transformer = None
         self.mlb = None
         self.doctors_df = None
-        # Focus on medical features only
-        self.numeric_features = ['experience_years', 'rating', 'patients_treated', 'fee']
+        self.numeric_features = ['experience_years', 'rating', 'patients_treated', 'consultation_fee_inr']
         self.categorical_features = ['specialization']
+        self.n_estimators = n_estimators
+        self.lemmatizer = WordNetLemmatizer()
+        self.stop_words = set(stopwords.words('english'))
 
-    def _preprocess_conditions(self, conditions) -> List[str]:
-        if not conditions:
-            return []
-        if isinstance(conditions, str):
-            conditions = [c.strip() for c in conditions.split(',')]
-        return [str(c).lower().strip() for c in conditions]
+    def preprocess_text(self, text: str) -> str:
+        """Preprocess text by tokenizing, removing stopwords, and lemmatizing."""
+        if not isinstance(text, str):
+            return ""
+        tokens = word_tokenize(text.lower())
+        tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
+        return " ".join(tokens)
 
-    def _build_transformer(self):
-        num_transformer = make_pipeline(StandardScaler())
-        cat_transformer = make_pipeline(OneHotEncoder(handle_unknown='ignore'))
-
-        return ColumnTransformer([
-            ('num', num_transformer, self.numeric_features),
-            ('cat', cat_transformer, self.categorical_features)
-        ])
-
-    def fit(self, doctors_data: List[Dict[str, Any]]) -> bool:
+    def fit(self, doctors_data: List[Dict[str, Any]]) -> None:
+        """Train the recommendation model using the provided doctors data."""
         try:
-            df = pd.DataFrame(doctors_data)
-            # Fix: Properly handle conditions_treated column
-            if 'conditions_treated' not in df.columns:
-                df['conditions_treated'] = [[]]
-            df['conditions_treated'] = df['conditions_treated'].apply(self._preprocess_conditions)
-
-            self.doctors_df = df.copy()
-            self.mlb = MultiLabelBinarizer()
-            y = self.mlb.fit_transform(df['conditions_treated'])
-
-            self.feature_transformer = self._build_transformer()
-            X = self.feature_transformer.fit_transform(df)
-
-            model = XGBClassifier(
-                n_estimators=self.n_estimators,
-                importance_type='weight',
-                use_label_encoder=False,
-                eval_metric='logloss',
-                n_jobs=-1,
-                verbosity=0
+            self.doctors_df = pd.DataFrame(doctors_data)
+            
+            # Preprocess conditions_treated
+            self.doctors_df['conditions_treated'] = self.doctors_df['conditions_treated'].apply(
+                lambda x: [self.preprocess_text(str(c)) for c in (x if isinstance(x, list) else [])]
             )
-            self.classifier = MultiOutputClassifier(model, n_jobs=-1)
+            
+            # Initialize MultiLabelBinarizer for conditions
+            self.mlb = MultiLabelBinarizer()
+            conditions_matrix = self.mlb.fit_transform(self.doctors_df['conditions_treated'])
+            
+            # Create feature transformer
+            numeric_transformer = Pipeline([
+                ('scaler', StandardScaler())
+            ])
+            
+            self.feature_transformer = ColumnTransformer(
+                transformers=[
+                    ('num', numeric_transformer, self.numeric_features)
+                ],
+                remainder='passthrough'
+            )
+            
+            # Prepare features
+            X = self.feature_transformer.fit_transform(self.doctors_df[self.numeric_features + self.categorical_features])
+            y = conditions_matrix
+            
+            # Train classifier
+            self.classifier = RandomForestClassifier(
+                n_estimators=self.n_estimators,
+                random_state=42,
+                n_jobs=-1
+            )
             self.classifier.fit(X, y)
-
-            logger.info("Model trained successfully with %d doctors", len(df))
-            return True
-
+            
+            logger.info("Model trained successfully")
+            
         except Exception as e:
-            logger.error("Training failed: %s", str(e), exc_info=True)
-            return False
-
-    def _transform_query(self, specialization: str = None) -> np.ndarray:
-        dummy = {
-            'experience_years': [0], 'rating': [0], 'patients_treated': [0],
-            'fee': [0], 'specialization': [specialization or 'General']
-        }
-        return self.feature_transformer.transform(pd.DataFrame(dummy))
+            logger.error(f"Error training model: {str(e)}")
+            raise
 
     def recommend_doctors(
         self,
         query: str,
-        specialization: str = None,
-        min_score: float = 0.1,
-        limit: int = 6,
-        page: int = 1,
-        include_importance: bool = False,
-        weights: Dict[str, float] = None
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
-        if self.classifier is None:
-            raise RuntimeError("Model not trained")
-
-        query = query.lower().strip()
+        specialization: Optional[str] = None,
+        limit: int = 10,
+        page: int = 1
+    ) -> List[Dict[str, Any]]:
+        """
+        Recommend doctors based on a query condition and optional specialization.
+        
+        Args:
+            query: The condition or symptoms to search for
+            specialization: Optional specialization to filter by
+            limit: Maximum number of recommendations to return
+            page: Page number for pagination
+            
+        Returns:
+            List of recommended doctors with their details
+        """
         try:
-            # Try exact match first
-            condition_idx = list(self.mlb.classes_).index(query)
-        except ValueError:
-            # If exact match fails, try partial match
-            matches = [i for i, cond in enumerate(self.mlb.classes_) if query in cond]
-            if matches:
-                condition_idx = matches[0]  # Use the first matching condition
-            else:
-                logger.warning("Query condition '%s' not found in training set", query)
+            if self.classifier is None or self.doctors_df is None:
+                logger.error("Model not trained")
                 return []
-
-        X = self.feature_transformer.transform(self.doctors_df)
-        y_probas = self.classifier.predict_proba(X)
-        scores = y_probas[condition_idx][:, 1]
-
-        results = []
-        for i, score in enumerate(scores):
-            if score >= min_score:
-                doc = self.doctors_df.iloc[i].to_dict()
-                doc['similarity_score'] = float(score)
-                doc['matched_conditions'] = [
-                    cond for cond in doc.get('conditions_treated', []) 
-                    if query in str(cond).lower()
-                ]
-                results.append(doc)
-
-        # Calculate variability for numeric features
-        variability = {}
-        for feature in ['experience_years', 'rating', 'patients_treated']:
-            if feature in self.doctors_df.columns:
-                values = self.doctors_df[feature].dropna()
-                variability[feature] = values.std() if not values.empty else 0.0
-            else:
-                variability[feature] = 0.0
-
-        total_variability = sum(variability.values())
-        if total_variability > 0:
-            variability = {k: v / total_variability for k, v in variability.items()}
-        else:
-            variability = {k: 0 for k in variability}
-
-        feature_imp = self.get_feature_importances()
-        total_importance = sum(feature_imp.values()) if feature_imp else 0
-        norm_imp = {k: (v / total_importance) if total_importance > 0 else 0 for k, v in feature_imp.items() if k in ['experience_years', 'rating', 'patients_treated']}
-
-        for doc in results:
-            spec_match = (specialization and doc.get('specialization', '').lower() == specialization.lower())
-
-            # Prioritize medical factors in scoring
-            dynamic_weights = {
-                'similarity': 0.4,  # Reduced from 0.6 to balance with other factors
-                'experience_years': 0.3 * norm_imp.get('experience_years', 0) * variability.get('experience_years', 0) * min(doc.get('experience_years', 0)/15, 1),
-                'rating': 0.2 * norm_imp.get('rating', 0) * variability.get('rating', 0) * (doc.get('rating', 0)/5),
-                'patients_treated': 0.1 * norm_imp.get('patients_treated', 0) * variability.get('patients_treated', 0) * min(doc.get('patients_treated', 0)/1000, 1),
-            }
-
-            final_weights = weights or dynamic_weights
-            doc['composite_score'] = sum([
-                final_weights['similarity'] * doc['similarity_score'],
-                final_weights['experience_years'],
-                final_weights['rating'],
-                final_weights['patients_treated']
-            ])
-            doc['weight_components'] = final_weights
-
-        results = sorted(results, key=lambda x: -x['composite_score'])
-
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_results = results[start_idx:end_idx]
-
-        logger.info("Returning %d doctor recommendations for query: '%s', page: %d", len(paginated_results), query, page)
-        return {'recommendations': paginated_results, 'feature_importance': feature_imp} if include_importance else paginated_results
-
-    def get_feature_importances(self) -> Dict[str, float]:
-        if self.classifier is None:
-            return {}
-
-        try:
-            importances = self.classifier.estimators_[0].feature_importances_
-            feature_names = (
-                self.feature_transformer.transformers_[0][2] +
-                list(self.feature_transformer.transformers_[1][1].named_steps['onehotencoder'].get_feature_names_out())
-            )
-
-            return {
-                feat: float(importances[i])
-                for i, feat in enumerate(feature_names)
-                if i < len(importances)
-            }
+                
+            # Preprocess query
+            processed_query = self.preprocess_text(query)
+            
+            # Get all conditions
+            all_conditions = self.mlb.classes_
+            
+            # Find matching conditions
+            matching_conditions = [c for c in all_conditions if processed_query in c]
+            if not matching_conditions:
+                logger.info(f"No exact matches found for query: {query}")
+                return []
+                
+            # Get condition indices
+            condition_indices = [list(all_conditions).index(c) for c in matching_conditions]
+            
+            # Get current doctor features
+            X = self.feature_transformer.transform(self.doctors_df[self.numeric_features + self.categorical_features])
+            
+            # Get probability scores for matching conditions
+            proba_scores = self.classifier.predict_proba(X)
+            
+            # Calculate average probability across matching conditions
+            avg_scores = np.mean([proba_scores[i][:, idx] for i, idx in enumerate(condition_indices)], axis=0)
+            
+            # Get doctor indices sorted by probability
+            doctor_indices = np.argsort(avg_scores)[::-1]
+            
+            # Apply specialization filter if provided
+            if specialization:
+                spec_mask = self.doctors_df['specialization'].str.lower() == specialization.lower()
+                doctor_indices = doctor_indices[spec_mask[doctor_indices]]
+            
+            # Apply pagination
+            start_idx = (page - 1) * limit
+            end_idx = start_idx + limit
+            paginated_indices = doctor_indices[start_idx:end_idx]
+            
+            # Get recommended doctors
+            recommendations = self.doctors_df.iloc[paginated_indices].to_dict('records')
+            
+            # Add relevance scores
+            for i, rec in enumerate(recommendations):
+                rec['relevance_score'] = float(avg_scores[paginated_indices[i]])
+                rec['matched_conditions'] = [c for c in matching_conditions if c in rec['conditions_treated']]
+            
+            return recommendations
+            
         except Exception as e:
-            logger.error("Failed to compute feature importances: %s", str(e), exc_info=True)
-            return {}
+            logger.error(f"Error generating recommendations: {str(e)}")
+            return []
 
-    def save(self, filepath: str):
+    def save(self, filepath: str) -> None:
         """Save the model and related components to a file."""
         try:
+            data = {
+                'classifier': self.classifier,
+                'feature_transformer': self.feature_transformer,
+                'mlb': self.mlb,
+                'doctors_df': self.doctors_df,
+                'numeric_features': self.numeric_features,
+                'categorical_features': self.categorical_features,
+                'n_estimators': self.n_estimators
+            }
+            
             with open(filepath, 'wb') as f:
-                pickle.dump({
-                    'classifier': self.classifier,
-                    'feature_transformer': self.feature_transformer,
-                    'mlb': self.mlb,
-                    'doctors_df': self.doctors_df,
-                    'numeric_features': self.numeric_features,
-                    'categorical_features': self.categorical_features,
-                    'n_estimators': self.n_estimators
-                }, f)
+                pickle.dump(data, f)
+                
             logger.info(f"Model saved successfully to {filepath}")
+            
         except Exception as e:
-            logger.error(f"Failed to save model to {filepath}: {e}")
+            logger.error(f"Error saving model: {str(e)}")
+            raise
 
-    def load(self, filepath: str):
+    def load(self, filepath: str) -> None:
         """Load the model and related components from a file."""
         try:
             with open(filepath, 'rb') as f:
@@ -219,9 +198,10 @@ class DoctorRecommender:
                 self.feature_transformer = data['feature_transformer']
                 self.mlb = data['mlb']
                 self.doctors_df = data['doctors_df']
-                self.numeric_features = data.get('numeric_features', ['experience', 'rating', 'patients_treated', 'fee'])
+                self.numeric_features = data.get('numeric_features', ['experience_years', 'rating', 'patients_treated', 'consultation_fee_inr'])
                 self.categorical_features = data.get('categorical_features', ['specialization'])
                 self.n_estimators = data.get('n_estimators', 100)
             logger.info(f"Model loaded successfully from {filepath}")
         except Exception as e:
             logger.error(f"Failed to load model from {filepath}: {e}")
+            raise

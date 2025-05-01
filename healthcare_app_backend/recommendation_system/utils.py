@@ -8,27 +8,19 @@ logger = logging.getLogger(__name__)
 
 def save_model(model: Any, filepath: str) -> bool:
     """
-    Save the trained model to a file
+    Save a trained model to file
     
     Args:
-        model: Trained model instance
-        filepath: Path to save the model
+        model: The model instance to save
+        filepath: Path where model should be saved
         
     Returns:
-        bool: True if successful, False otherwise
+        bool: True if save successful, False otherwise
     """
     try:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, 'wb') as f:
-            pickle.dump({
-                'classifier': model.classifier,
-                'feature_transformer': model.feature_transformer,
-                'mlb': model.mlb,
-                'doctors_df': model.doctors_df,
-                'numeric_features': model.numeric_features,
-                'categorical_features': model.categorical_features,
-                'n_estimators': model.n_estimators
-            }, f)
+            pickle.dump(model, f)
         logger.info(f"Model saved successfully to {filepath}")
         return True
     except Exception as e:
@@ -43,22 +35,20 @@ def load_model(filepath: str) -> Any:
         filepath: Path to the saved model
         
     Returns:
-        Loaded model instance
+        Loaded model instance or None if loading fails
     """
     try:
         with open(filepath, 'rb') as f:
             data = pickle.load(f)
-            
-        # Return the raw data dictionary
+        logger.info(f"Model loaded successfully from {filepath}")
         return data
-        
     except Exception as e:
         logger.error(f"Error loading model: {str(e)}")
         return None
 
 def preprocess_doctor_data(doctor: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Preprocess a single doctor's data for the recommendation system
+    Prepare doctor data for model training/prediction
     
     Args:
         doctor: Dictionary containing doctor information
@@ -66,28 +56,30 @@ def preprocess_doctor_data(doctor: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Preprocessed doctor data
     """
-    processed = doctor.copy()
-    
-    # Ensure numeric fields are float/int
     try:
-        processed['experience'] = float(doctor.get('experience', 0))
-        processed['rating'] = float(doctor.get('rating', 0))
-        processed['patients_treated'] = int(doctor.get('patients_treated', 0))
-    except (ValueError, TypeError):
-        processed['experience'] = 0.0
-        processed['rating'] = 0.0
-        processed['patients_treated'] = 0
-    
-    # Ensure conditions_treated is a list
-    conditions = doctor.get('conditions_treated', [])
-    if isinstance(conditions, str):
-        conditions = [c.strip() for c in conditions.split(',')]
-    processed['conditions_treated'] = conditions
-    
-    # Ensure specialization is a string
-    processed['specialization'] = str(doctor.get('specialization', ''))
-    
-    return processed
+        processed = {
+            'id': doctor.get('id'),
+            'name': doctor.get('name', ''),
+            'specialization': doctor.get('specialization', 'General').lower(),
+            'experience_years': float(doctor.get('experience_years', 0)),
+            'rating': float(doctor.get('rating', 4.0)),
+            'patients_treated': int(doctor.get('patients_treated', 0)),
+            'consultation_fee_inr': float(doctor.get('consultation_fee_inr', 500))
+        }
+        
+        # Ensure conditions treated is a list of lowercase strings
+        conditions = doctor.get('conditions_treated', [])
+        if isinstance(conditions, str):
+            conditions = [c.strip().lower() for c in conditions.split(',')]
+        else:
+            conditions = [str(c).strip().lower() for c in (conditions or [])]
+        processed['conditions_treated'] = conditions
+        
+        return processed
+        
+    except Exception as e:
+        logger.error(f"Error preprocessing doctor data: {str(e)}")
+        return {}
 
 def batch_preprocess_doctors(doctors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -97,12 +89,31 @@ def batch_preprocess_doctors(doctors: List[Dict[str, Any]]) -> List[Dict[str, An
         doctors: List of doctor dictionaries
         
     Returns:
-        List of preprocessed doctor records
+        List of preprocessed doctor data
     """
-    return [preprocess_doctor_data(doc) for doc in doctors]
+    try:
+        processed = []
+        for doc in doctors:
+            processed_doc = preprocess_doctor_data(doc)
+            if processed_doc:  # Only include successfully processed records
+                processed.append(processed_doc)
+        return processed
+    except Exception as e:
+        logger.error(f"Error batch preprocessing doctors: {str(e)}")
+        return []
 
 def get_model_path() -> str:
-    """Get the path for saving/loading the model"""
-    base_dir = Path(__file__).parent.parent
-    models_dir = base_dir / 'models'
-    return str(models_dir / 'doctor_recommender.pkl')
+    """
+    Get the path for saving/loading the model
+    
+    Returns:
+        String path to model file
+    """
+    try:
+        base_dir = Path(__file__).resolve().parent.parent
+        models_dir = base_dir / 'models'
+        os.makedirs(models_dir, exist_ok=True)
+        return str(models_dir / 'doctor_recommender.pkl')
+    except Exception as e:
+        logger.error(f"Error getting model path: {str(e)}")
+        return 'doctor_recommender.pkl'  # Fallback to current directory

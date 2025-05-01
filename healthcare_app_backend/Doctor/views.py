@@ -7,23 +7,19 @@ from .models import Doctor
 from .serializers import DoctorSerializer, DoctorRegistrationSerializer, AppointmentSerializer
 from hospital.models import Hospital
 from django.db.models import Q, F, ExpressionWrapper, FloatField
-import re
 from django.shortcuts import render
 import logging
 import pandas as pd
 import os
 from rest_framework.views import APIView
 from user_management.models import Appointment, User
-from user_management.permissions import IsUser  # Added this import
+from user_management.permissions import IsUser
 from datetime import datetime, timedelta
 from django.utils import timezone
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
-from rest_framework.decorators import authentication_classes, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.authentication import JWTAuthentication
 
 # Import the recommender components
 from recommendation_system.doctor_recommender import DoctorRecommender
@@ -34,12 +30,10 @@ from recommendation_system.utils import (
     load_model,
     get_model_path
 )
-recommender_available = True
 
 logger = logging.getLogger(__name__)
-
-# Global variable to store the recommender model
 recommender = None
+recommender_available = True
 
 @api_view(['GET'])
 def recommend_nearest_doctors(request):
@@ -126,8 +120,6 @@ def recommend_nearest_doctors(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-from recommendation_system.utils import load_model, get_model_path
-
 def get_recommender():
     """Get or initialize the recommender model"""
     global recommender
@@ -137,7 +129,15 @@ def get_recommender():
             if loaded_model is None:
                 recommender = DoctorRecommender()
             else:
-                recommender = loaded_model
+                # loaded_model is a dict, create DoctorRecommender instance and set attributes
+                recommender = DoctorRecommender()
+                recommender.classifier = loaded_model.get('classifier')
+                recommender.feature_transformer = loaded_model.get('feature_transformer')
+                recommender.mlb = loaded_model.get('mlb')
+                recommender.doctors_df = loaded_model.get('doctors_df')
+                recommender.numeric_features = loaded_model.get('numeric_features', ['experience_years', 'rating', 'patients_treated', 'fee'])
+                recommender.categorical_features = loaded_model.get('categorical_features', ['specialization'])
+                recommender.n_estimators = loaded_model.get('n_estimators', 100)
         except Exception as e:
             logger.error(f"Error loading recommender model: {e}")
             recommender_available = False
@@ -241,32 +241,33 @@ def recommend_doctors(request):
     specialization = request.GET.get('specialization')
 
     try:
-        # If query is empty, return all doctors
-        if not query:
-            doctors = Doctor.objects.select_related('hospital').all()[:limit]
-            serializer = DoctorSerializer(doctors, many=True)
+        recommender = get_recommender()
+        if recommender is None:
             return Response({
-                'recommended_doctors': serializer.data,
-                'count': len(doctors)
-            })
+                'error': 'Recommendation model not available'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        # First try direct match with conditions_treated
-        doctors = Doctor.objects.select_related('hospital').filter(
-            Q(conditions_treated__icontains=query) |  # Case-insensitive condition match
-            Q(specialization__icontains=query)  # Case-insensitive specialization match
+        # Use the trained model to get recommendations
+        recommendations = recommender.recommend_doctors(
+            query=query,
+            specialization=specialization,
+            limit=limit,
+            page=page
         )
 
-        if doctors.exists():
-            doctors = doctors[:limit]
+        # If no recommendations from model, fallback to DB query
+        if not recommendations:
+            doctors = Doctor.objects.select_related('hospital').filter(
+                Q(conditions_treated__icontains=query) |
+                Q(specialization__icontains=query)
+            )[:limit]
             serializer = DoctorSerializer(doctors, many=True)
-            return Response({
-                'recommended_doctors': serializer.data,
-                'count': len(doctors)
-            })
+            recommendations = serializer.data
 
-        # If no direct matches, use the ML recommender
-        recommender = DoctorRecommender(n_estimators=100)
-        # Rest of the existing recommendation logic...
+        return Response({
+            'recommended_doctors': recommendations,
+            'count': len(recommendations)
+        })
 
     except Exception as e:
         logger.error(f"Recommendation error: {str(e)}")
@@ -316,7 +317,6 @@ def manage_doctor_profile(request, email=None):
     try:
         # Find the doctor by matching the mobile number
         # This assumes doctor's name format is "FirstName LastName" from user model
-        from user_management.models import User
         user = User.objects.get(email=email, role='doctor')
         
         # Look for the doctor with the same mobile number
@@ -618,3 +618,49 @@ def check_appointment_conflict(request):
         return Response({
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def check_doctor_availability(request, id):
+    """
+    Get detailed availability information for a specific doctor,
+    including their general availability hours and specific appointment slots
+    """
+    try:
+        doctor = Doctor.objects.get(id=id)
+        now = timezone.now()
+        
+        # Get all upcoming appointments for the doctor
+        upcoming_appointments = Appointment.objects.filter(
+            doctor=doctor,
+            appointment_date__gte=now
+        ).order_by('appointment_date')
+        
+        # Format the appointments into time slots
+        booked_slots = [
+            {
+                'start_time': appointment.appointment_date,
+                'end_time': appointment.appointment_date + timedelta(minutes=30)
+            }
+            for appointment in upcoming_appointments
+        ]
+        
+        response_data = {
+            'id': doctor.id,
+            'name': doctor.name,
+            'general_availability': doctor.availability,  # The general availability string like "9 AM - 5 PM"
+            'booked_slots': booked_slots,  # List of specific time slots that are already booked
+            'consultation_duration': 30,  # Default consultation duration in minutes
+        }
+        
+        return Response(response_data)
+        
+    except Doctor.DoesNotExist:
+        return Response(
+            {'error': 'Doctor not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

@@ -11,7 +11,8 @@ from .views import (
     book_appointment,
     doctor_appointments,
     user_appointments,
-    check_appointment_conflict
+    check_appointment_conflict,
+    check_doctor_availability
 )
 
 urlpatterns = [
@@ -28,4 +29,5 @@ urlpatterns = [
     path('doctor-appointments/', doctor_appointments, name='doctor-appointments'),
     path('user-appointments/', user_appointments, name='user-appointments'),
     path('check-appointment-conflict/', check_appointment_conflict, name='check-appointment-conflict'),
+    path('check-availability/<int:id>/', check_doctor_availability, name='check-doctor-availability'),
 ]

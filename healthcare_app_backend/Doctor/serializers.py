@@ -1,13 +1,13 @@
 from rest_framework import serializers
-from .models import Doctor
-from hospital.models import Hospital
 from django.core.validators import RegexValidator
+from hospital.models import Hospital
 from user_management.models import Appointment
+from .models import Doctor
 
 class HospitalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hospital
-        fields = ['id', 'name', 'address', 'latitude', 'longitude']
+        fields = ['id', 'name', 'address', 'latitude', 'longitude', 'available_beds', 'specialization']
 
 class DoctorSerializer(serializers.ModelSerializer):
     hospital = HospitalSerializer(read_only=True)
@@ -25,6 +25,23 @@ class DoctorRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Doctor
         fields = '__all__'
+        extra_kwargs = {
+            'mobile_number': {
+                'required': True,
+                'validators': [
+                    RegexValidator(
+                        regex=r'^\d{10}$',
+                        message="Mobile number must be exactly 10 digits."
+                    )
+                ]
+            },
+            'name': {'required': True},
+            'specialization': {'required': False},
+            'experience_years': {'required': False},
+            'availability': {'required': False},
+            'consultation_fee_inr': {'required': False},
+            'conditions_treated': {'required': False}
+        }
 
     def create(self, validated_data):
         # Extract hospital data
@@ -71,8 +88,11 @@ class AppointmentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Appointment
-        fields = ['id', 'doctor', 'doctor_name', 'user', 'user_name', 'appointment_date', 
-                'reason', 'created_at', 'hospital_name', 'hospital_address', 'specialization']
+        fields = [
+            'id', 'doctor', 'doctor_name', 'user', 'user_name', 
+            'appointment_date', 'reason', 'created_at',
+            'hospital_name', 'hospital_address', 'specialization'
+        ]
         read_only_fields = ['created_at']
 
 

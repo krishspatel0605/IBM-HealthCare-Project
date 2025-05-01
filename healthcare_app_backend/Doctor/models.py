@@ -2,6 +2,17 @@ from django.db import models
 from django.core.validators import RegexValidator
 from hospital.models import Hospital
 
+COMMON_CONDITIONS = {
+    'pulmonology': ['asthma', 'copd', 'bronchitis', 'pneumonia'],
+    'cardiology': ['hypertension', 'heart disease', 'arrhythmia', 'heart failure'],
+    'neurology': ['migraine', 'epilepsy', 'stroke', 'multiple sclerosis'],
+    'orthopedics': ['arthritis', 'osteoporosis', 'back pain', 'joint pain'],
+    'endocrinology': ['diabetes', 'thyroid disorders', 'hormonal imbalance'],
+    'psychiatry': ['depression', 'anxiety', 'bipolar disorder', 'schizophrenia'],
+    'dermatology': ['acne', 'psoriasis', 'eczema', 'skin cancer'],
+    'gastroenterology': ['ibs', 'ulcer', 'crohn disease', 'hepatitis']
+}
+
 class Doctor(models.Model):
     name = models.CharField(max_length=100)
     mobile_number = models.CharField(
@@ -55,8 +66,9 @@ class Doctor(models.Model):
             self.conditions_treated = []
             
         # Automatically add common conditions based on specialization
-        if self.specialization.lower() in ['pulmonology', 'respiratory medicine', 'chest medicine']:
-            common_conditions = ['asthma', 'copd', 'bronchitis', 'pneumonia']
-            self.conditions_treated = list(set(self.conditions_treated + common_conditions))
+        spec_lower = self.specialization.lower()
+        for specialty, conditions in COMMON_CONDITIONS.items():
+            if specialty in spec_lower:
+                self.conditions_treated = list(set(self.conditions_treated + conditions))
             
         super().save(*args, **kwargs)
