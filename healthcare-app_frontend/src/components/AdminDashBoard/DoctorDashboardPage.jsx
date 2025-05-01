@@ -365,9 +365,17 @@ export default function DoctorDashboardPage() {
             <div>
               <h4 className="text-xl font-bold mb-4">Contact</h4>
               <ul className="space-y-2 text-gray-400">
-                <li>Support: +1 (555)...</li>
+              <li>Support: +1 (555) 123-4567</li>
+              <li>Email: support@healhcare.com</li>
               </ul>
             </div>
+             <div>
+                  <h4 className="text-xl font-bold mb-4">Legal</h4>
+                    <ul className="space-y-2">
+                      <li><Link to="/privacy" className="text-gray-400 hover:text-white">Privacy Policy</Link></li>
+                      <li><Link to="/terms" className="text-gray-400 hover:text-white">Terms of Service</Link></li>
+                    </ul>
+              </div>
           </div>
         </div>
       </footer>
