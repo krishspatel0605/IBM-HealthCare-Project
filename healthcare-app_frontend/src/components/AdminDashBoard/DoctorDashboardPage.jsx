@@ -23,6 +23,8 @@ export default function DoctorDashboardPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [appointments, setAppointments] = useState([]);
+  const [weeklyChartData, setWeeklyChartData] = useState([0, 0, 0, 0, 0, 0, 0]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
@@ -32,6 +34,10 @@ export default function DoctorDashboardPage() {
   });
 
   const navigate = useNavigate();
+
+  
+
+
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
@@ -52,43 +58,53 @@ export default function DoctorDashboardPage() {
   }, [navigate]);
 
   const fetchAppointments = async () => {
+    const auth_token = localStorage.getItem('auth_token');
     try {
-      setLoading(true);
-      const response = await axiosInstance.get('/doctor-appointments/');
-
-      if (Array.isArray(response.data)) {
-        setAppointments(response.data);
-
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-
-        const todayAppointments = response.data.filter(
-          (app) =>
-            new Date(app.appointment_date).toISOString().startsWith(today)
-        ).length;
-
-        const upcomingAppointments = response.data.filter(
-          (app) => new Date(app.appointment_date) > now
-        ).length;
-
-        setStats({
-          todayAppointments,
-          totalAppointments: response.data.length,
-          upcomingAppointments,
-        });
-      } else {
-        throw new Error('Invalid response format');
-      }
-    } catch (err) {
-      console.error('Error fetching appointments:', err);
-      const errorMessage =
-        err.response?.data?.error || 'Failed to load appointments';
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
+      const response = await axiosInstance.get(`/doctor-appointments/`, {
+        headers: {
+          Authorization: `Bearer ${auth_token}`,
+        },
+      });
+  
+      setAppointments(response.data);
+  
+      const totalAppointments = response.data.length;
+      const completedAppointments = response.data.filter(
+        (app) => app.status === 'Completed'
+      ).length;
+      const pendingAppointments = totalAppointments - completedAppointments;
+  
+      setStats({
+        total: totalAppointments,
+        completed: completedAppointments,
+        pending: pendingAppointments,
+      });
+  
+      // ✅ Weekly Appointments Data (for bar chart)
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Monday
+      const appointmentsPerDay = [0, 0, 0, 0, 0, 0, 0]; // Mon to Sun
+  
+      response.data.forEach((app) => {
+        const appDate = new Date(app.appointment_date);
+        const dayIndex = appDate.getDay(); // 0 (Sun) to 6 (Sat)
+  
+        const adjustedIndex = (dayIndex + 6) % 7; // Make Mon=0, Sun=6
+  
+        if (
+          appDate >= startOfWeek &&
+          appDate <= new Date(startOfWeek.getTime() + 6 * 24 * 60 * 60 * 1000)
+        ) {
+          appointmentsPerDay[adjustedIndex]++;
+        }
+      });
+  
+      setWeeklyChartData(appointmentsPerDay);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
     }
   };
+  
 
   const handleAppointmentAction = (action, appointmentId) => {
     switch (action) {
@@ -217,39 +233,41 @@ export default function DoctorDashboardPage() {
           </div>
           <div className="bg-white p-6 rounded-xl shadow mt-8">
   <h3 className="text-lg font-semibold text-gray-700 mb-4">Appointments This Week</h3>
+  {/* shoule be fetch from /doctor-appointments */}
   <Bar
-    data={{
-      labels: [...Array(7)].map((_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - i));
-        return date.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue...
-      }),
-      datasets: [{
+  data={{
+    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    datasets: [
+      {
         label: 'Appointments',
-        backgroundColor: '#3B82F6',
-        borderRadius: 5,
-        data: [...Array(7)].map((_, i) => {
-          const targetDate = new Date();
-          targetDate.setDate(targetDate.getDate() - (6 - i));
-          const dayString = targetDate.toDateString();
-          return appointments.filter(app => new Date(app.date).toDateString() === dayString).length;
-        }),
-      }]
-    }}
-    options={{
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            stepSize: 1,
-            precision: 0,
-          },
+        data: weeklyChartData,
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1,
+      },
+    ],
+  }}
+  options={{
+    responsive: true,
+    plugins: {
+      legend: {
+        display: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1,
         },
       },
-    }}
-  />
-</div>
+    },
+  }}
+  height={100}
+  width={300}
+/>
+
+  </div>
 
         </div>
       )}
