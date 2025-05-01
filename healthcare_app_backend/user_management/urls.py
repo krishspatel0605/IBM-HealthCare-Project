@@ -1,51 +1,25 @@
 from django.urls import path
-from .views import (
-    RegisterUserView,
-    LoginView,
-    UserProfileView,
-    UserSearchesView,
-    SavedDoctorsView,
-    RecommendedConditionsView,
-    # TestDoctorCreationView,
-    # UserAppointmentsView,
-    ResendActivationOTPView,
-    ResendLoginOTPView,
-    ForgotPasswordView,
-    ResetPasswordView,
-    ActivationView,
-    LoginOTPVerifyView,
-    RoleBasedAccess,
-    LogoutView,
-    
-)
+from . import views
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
-    path("register/", RegisterUserView.as_view(), name="register"),
-    path("activate/", ActivationView.as_view(), name="activate"),
-    path("login/", LoginView.as_view(), name="login"),
-    path("verify-login-otp/", LoginOTPVerifyView.as_view(), name="verify_login_otp"),  # ✅ Fixed
-    path("role-access/", RoleBasedAccess.as_view(), name="role_access"),
-    path("logout/", LogoutView.as_view(), name="logout"),
-    path('resend-activation-otp/', ResendActivationOTPView.as_view(), name='resend-activation-otp'),
-    path("resend-login-otp/", ResendLoginOTPView.as_view(), name="resend_login_otp"),
-    path("forgot-password/", ForgotPasswordView.as_view(), name="forgot_password"),
-    path("reset-password/", ResetPasswordView.as_view(), name="reset_password"),
-
-    path('healthcare-users/', UserProfileView.as_view(), name='user_profile'),
-    
-    # JWT token refresh endpoint
+    # Authentication endpoints
+    path('register/', views.RegisterUserView.as_view(), name='user_registration'),
+    path('login/', views.LoginView.as_view(), name='user_login'),
+    path('verify-login-otp/', views.LoginOTPVerifyView.as_view(), name='verify-login-otp'),
+    path('resend-login-otp/', views.ResendLoginOTPView.as_view(), name='resend-login-otp'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
-    # User profile and personalization endpoints
-    path('user-profile/', UserProfileView.as_view(), name='user_profile'),
-    path('user-searches/', UserSearchesView.as_view(), name='user_searches'),
-    path('save-search/', UserSearchesView.as_view(), name='save_search'),
-    path('saved-doctors/', SavedDoctorsView.as_view(), name='saved_doctors'),
-    path('save-doctor/', SavedDoctorsView.as_view(), name='save_doctor'),
-    path('recommended-conditions/', RecommendedConditionsView.as_view(), name='recommended_conditions'),
+    # User data endpoints
+    path('user-profile/', views.UserProfileView.as_view(), name='user-profile'),
+    path('user-searches/', views.UserSearchesView.as_view(), name='user-searches'),
+    path('saved-doctors/', views.SavedDoctorsView.as_view(), name='saved-doctors'),
+    path('recommended-conditions/', views.RecommendedConditionsView.as_view(), name='recommended-conditions'),
     
-    # Test endpoint
-    # path('test-doctor-creation/', TestDoctorCreationView.as_view(), name='test_doctor_creation'),
-
+    # Verification endpoints
+    path('verify-email/', views.verify_email, name='verify_email'),
+    path('send-otp/', views.send_otp, name='send_otp'),
+    path('verify-otp/', views.verify_otp, name='verify_otp'),
+    path('reset-password/', views.reset_password, name='reset_password'),
+    path('check-auth/', views.check_auth, name='check_auth'),
 ]

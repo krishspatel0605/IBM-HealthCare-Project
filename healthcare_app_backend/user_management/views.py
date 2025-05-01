@@ -10,7 +10,7 @@ from .permissions import IsUser, IsDoctor
 from django.contrib.auth import authenticate, get_user_model
 from Doctor.models import Doctor
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework.decorators import authentication_classes, permission_classes
+from rest_framework.decorators import authentication_classes, permission_classes, api_view
 import logging
 from django.core.mail import send_mail
 from django.conf import settings
@@ -665,45 +665,137 @@ class RecommendedConditionsView(APIView):
 
     def get(self, request):
         try:
-            user = request.user
-            
-            # Get user's recent searches
-            recent_searches = UserSearch.objects.filter(user=user).order_by('-timestamp')[:5]
-            search_conditions = [search.query for search in recent_searches]
-            
-            # Get conditions from user's saved doctors
-            saved_doctors = SavedDoctor.objects.filter(user=user).select_related('doctor')
-            doctor_conditions = []
-            for saved in saved_doctors:
-                if saved.doctor.conditions_treated:
-                    if isinstance(saved.doctor.conditions_treated, list):
-                        doctor_conditions.extend(saved.doctor.conditions_treated)
-                    else:
-                        doctor_conditions.append(saved.doctor.conditions_treated)
-
-            # Common chronic conditions that might be relevant
+            # Common chronic conditions that users frequently search for
             common_conditions = [
                 "Diabetes", "Hypertension", "Asthma", "Heart Disease",
                 "Arthritis", "Depression", "Anxiety", "Cancer",
                 "COPD", "Thyroid Disorders"
             ]
-            
-            # Combine and deduplicate conditions
-            all_conditions = list(set(search_conditions + doctor_conditions + common_conditions))
-            
-            # Prioritize conditions from user's history
-            recommended = (
-                search_conditions[:2] +  # Recent searches first
-                list(set(doctor_conditions) - set(search_conditions))[:3] +  # Then conditions from saved doctors
-                list(set(common_conditions) - set(search_conditions) - set(doctor_conditions))[:5]  # Then common conditions
-            )
 
             return Response({
-                "conditions": recommended[:10]  # Return top 10 recommendations
+                "conditions": common_conditions[:10]  # Return top 10 common conditions
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({
-                "error": "Failed to fetch recommended conditions",
+                "error": "Failed to fetch conditions",
                 "detail": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_email(request):
+    """Verify email address"""
+    email = request.data.get('email')
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email.lower())
+        return Response({'exists': True}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'exists': False}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_otp(request):
+    """Send OTP for verification"""
+    email = request.data.get('email')
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email.lower())
+        
+        # Generate and save OTP
+        otp = get_random_string(6, '0123456789')
+        user.email_otp = otp
+        user.otp_expiry = now() + timedelta(minutes=5)
+        user.save()
+        
+        # Send OTP email
+        send_mail(
+            'OTP Verification',
+            f'Your OTP is: {otp}',
+            settings.EMAIL_HOST_USER,
+            [email],
+            fail_silently=False,
+        )
+        
+        return Response({'message': 'OTP sent successfully'}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_otp(request):
+    """Verify OTP"""
+    email = request.data.get('email')
+    otp = request.data.get('otp')
+    
+    if not email or not otp:
+        return Response({'error': 'Email and OTP are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email.lower())
+        
+        if not user.email_otp or user.email_otp != otp:
+            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user.otp_expiry or user.otp_expiry < now():
+            return Response({'error': 'OTP has expired'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Clear OTP after successful verification
+        user.email_otp = None
+        user.otp_expiry = None
+        user.save()
+        
+        return Response({'message': 'OTP verified successfully'}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """Reset user password"""
+    email = request.data.get('email')
+    new_password = request.data.get('new_password')
+    otp = request.data.get('otp')
+    
+    if not all([email, new_password, otp]):
+        return Response({'error': 'Email, new password and OTP are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email.lower())
+        
+        if not user.email_otp or user.email_otp != otp:
+            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user.otp_expiry or user.otp_expiry < now():
+            return Response({'error': 'OTP has expired'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update password and clear OTP
+        user.password = make_password(new_password)
+        user.email_otp = None
+        user.otp_expiry = None
+        user.save()
+        
+        return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def check_auth(request):
+    """Check if user is authenticated and return basic info"""
+    user = request.user
+    return Response({
+        'authenticated': True,
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'name': user.name,
+            'role': user.role
+        }
+    }, status=status.HTTP_200_OK)

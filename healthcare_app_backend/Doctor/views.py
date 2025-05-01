@@ -6,237 +6,70 @@ from django.core.cache import cache
 from .models import Doctor
 from .serializers import DoctorSerializer, DoctorRegistrationSerializer, AppointmentSerializer
 from hospital.models import Hospital
-from django.db.models import Q, F, ExpressionWrapper, FloatField
-import re
-from django.shortcuts import render
+from django.db.models import Q
 import logging
-import pandas as pd
-import os
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from user_management.models import Appointment, User
-from user_management.permissions import IsUser  # Added this import
+from user_management.permissions import IsUser
 from datetime import datetime, timedelta
 from django.utils import timezone
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.permissions import IsAuthenticated
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
-from rest_framework.decorators import authentication_classes, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.authentication import JWTAuthentication
-
-# Import the recommender components
-from recommendation_system.doctor_recommender import DoctorRecommender
-from recommendation_system.location_recommender import LocationBasedDoctorRecommender
-from recommendation_system.utils import (
-    batch_preprocess_doctors,
-    save_model,
-    load_model,
-    get_model_path
-)
-recommender_available = True
+from models.doctor_recommender import DoctorRecommender
 
 logger = logging.getLogger(__name__)
 
-# Global variable to store the recommender model
-recommender = None
-
-@api_view(['GET'])
-def recommend_nearest_doctors(request):
-    """
-    Recommend nearest doctors based on user's latitude and longitude.
-    Primary sorting is by location, secondary by medical relevance.
-    """
-    try:
-        user_latitude = request.GET.get('user_latitude')
-        user_longitude = request.GET.get('user_longitude')
-        query = request.GET.get('query', '').strip()
-        specialization = request.GET.get('specialization')
-        limit = int(request.GET.get('limit')) if request.GET.get('limit') else None
-        max_distance_km = float(request.GET.get('max_distance_km', 30.0))
-
-        # Validate location data
-        if user_latitude is None or user_longitude is None:
-            return Response(
-                {'error': 'User location not provided'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        user_latitude = float(user_latitude)
-        user_longitude = float(user_longitude)
-
-        # Get all doctors data for training
-        doctors_data = Doctor.objects.select_related('hospital').all()
-        if not doctors_data:
-            return Response(
-                {'error': 'No doctors available in the system'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-            
-        # Prepare data for the recommender
-        doctors_list = []
-        for doc in doctors_data:
-            doc_data = {
-                'id': doc.id,
-                'name': doc.name,
-                'specialization': doc.specialization,
-                'experience_years': doc.experience_years,
-                'rating': doc.rating,
-                'patients_treated': doc.patients_treated,
-                'conditions_treated': doc.conditions_treated,
-                'consultation_fee_inr': doc.consultation_fee_inr,
-                'availability': doc.availability,
-                'mobile_number': doc.mobile_number,
-                'success_rate': doc.success_rate,
-                'latitude': float(doc.hospital.latitude),
-                'longitude': float(doc.hospital.longitude),
-                'hospital': {
-                    'name': doc.hospital.name,
-                    'address': doc.hospital.address,
-                    'latitude': float(doc.hospital.latitude),
-                    'longitude': float(doc.hospital.longitude)
-                }
-            }
-            doctors_list.append(doc_data)
-
-        # Preprocess all doctor data
-        processed_doctors = batch_preprocess_doctors(doctors_list)
-
-        # Try to load existing model first
-        model_path = get_model_path()
-        recommender = LocationBasedDoctorRecommender(distance_weight=0.7)
-        
-        try:
-            if recommender.load(model_path):
-                logger.info("Loaded existing model with historical weights")
-            else:
-                logger.info("No existing model found, training new model")
-        except Exception as e:
-            logger.warning(f"Could not load existing model: {e}, training new one")
-
-        # Train/update the model with preprocessed data
-        if not recommender.fit(processed_doctors):
-            return Response(
-                {'error': 'Failed to train recommendation model'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-        # Save the updated model
-        try:
-            recommender.save(model_path)
-            logger.info("Saved updated model with new weights")
-        except Exception as e:
-            logger.warning(f"Could not save model: {e}")
-        
-        # Get recommendations with location as primary factor
-        recommendations = recommender.recommend_doctors(
-            user_latitude=user_latitude,
-            user_longitude=user_longitude,
-            query=query,
-            specialization=specialization,
-            max_distance_km=max_distance_km,
-            limit=limit  # Pass None or specific limit
-        )
-        
-        if not recommendations:
-            msg = f"No doctors found within {max_distance_km} km"
-            if query:
-                msg += f" matching '{query}'"
-            if specialization:
-                msg += f" with specialization '{specialization}'"
-            return Response({'message': msg, 'recommended_doctors': []})
-
-        # Include score details in response for transparency
-        response_data = {
-            'recommended_doctors': recommendations,
-            'count': len(recommendations),
-            'weights_used': getattr(recommender, 'condition_weights_history', {}).get(query.lower() if query else '', recommender._get_default_weights()),
-            'recommendation_details': {
-                'distance_weight': recommender.distance_weight,
-                'max_distance': max_distance_km,
-                'query_processed': query.lower() if query else None,
-                'specialization_matched': specialization.lower() if specialization else None
-            }
-        }
-
-        return Response(response_data)
-
-    except ValueError:
-        return Response(
-            {'error': 'Invalid latitude or longitude values'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    except Exception as e:
-        logger.error(f"Error in recommend_nearest_doctors: {str(e)}")
-        return Response(
-            {'error': 'Failed to fetch recommendations', 'detail': str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-from recommendation_system.utils import load_model, get_model_path
-
-def get_recommender():
-    """Get or initialize the recommender model"""
-    global recommender
-    if recommender is None:
-        try:
-            loaded_model = load_model(get_model_path())
-            if loaded_model is None:
-                recommender = DoctorRecommender()
-            else:
-                recommender = loaded_model
-        except Exception as e:
-            logger.error(f"Error loading recommender model: {e}")
-            recommender_available = False
-    return recommender
+# Initialize the recommender as a singleton
+doctor_recommender = DoctorRecommender()
 
 @api_view(['GET'])
 def get_doctors(request):
     """
-    Get all doctors or filter by specialization
+    Get all doctors or filter by specialization/disease
     """
-    specialization = request.GET.get('specialization', '').strip().lower()
+    query = request.GET.get('disease', '').lower().strip()
+    doctors = Doctor.objects.select_related('hospital').all()
     
-    # Check cache first
-    cache_key = f"doctors_{specialization}" if specialization else "doctors_all"
-    cached_data = cache.get(cache_key)
+    if query:
+        doctors = doctors.filter(
+            Q(specialization__icontains=query) |
+            Q(conditions_treated__icontains=query)
+        )
+    
+    serializer = DoctorSerializer(doctors, many=True)
+    return Response({
+        'doctors': serializer.data,
+        'count': len(serializer.data)
+    })
 
-    if cached_data:
-        return JsonResponse(cached_data, safe=False)
-
-    # Filter doctors based on specialization query
-    if specialization:
-        doctors = Doctor.objects.filter(specialization__icontains=specialization)
-    else:
-        doctors = Doctor.objects.all()
-
-    doctor_list = list(doctors.values(
-        "id", "name", "specialization", "experience_years", 
-        "availability", "consultation_fee_inr", "rating", "patients_treated"
-    ))
-
-    # Store result in cache
-    cache.set(cache_key, doctor_list, timeout=300)  # Cache for 5 minutes
-
-    return JsonResponse(doctor_list, safe=False)
+@api_view(['GET'])
+def list_all_doctors(request):
+    """
+    Get all doctors with optional limit parameter
+    """
+    try:
+        limit = int(request.GET.get('limit', 100))
+        doctors = Doctor.objects.select_related('hospital').all()[:limit]
+        serializer = DoctorSerializer(doctors, many=True)
+        return Response({
+            'doctors': serializer.data,
+            'count': len(serializer.data)
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 def get_specialization_options(request):
     """
     Fetches a list of unique specializations offered by doctors.
     """
-    cache_key = "specialization_options"
-    cached_data = cache.get(cache_key)
-
-    if cached_data:
-        return JsonResponse(cached_data, safe=False)
-
-    # Fetch unique specializations
-    specializations = Doctor.objects.values_list("specialization", flat=True).distinct()
-    unique_specializations = sorted(set(specializations))
-
-    cache.set(cache_key, unique_specializations, timeout=600)  # Cache for 10 minutes
-    return JsonResponse(unique_specializations, safe=False)
+    specializations = Doctor.objects.values_list('specialization', flat=True).distinct()
+    return Response(list(specializations))
 
 @api_view(['GET'])
 def doctor_details_view(request, id):
@@ -244,281 +77,63 @@ def doctor_details_view(request, id):
     Get detailed information about a specific doctor
     """
     try:
-        doctor = Doctor.objects.get(id=id)
-        
-        doctor_data = {
-            "id": doctor.id,
-            "name": doctor.name,
-            "specialization": doctor.specialization,
-            "experience_years": doctor.experience_years,
-            "availability": doctor.availability,
-            "consultation_fee_inr": doctor.consultation_fee_inr,
-            "patients_treated": doctor.patients_treated,
-            "rating": doctor.rating,
-            "mobile_number": doctor.mobile_number
-        }
-        
-        # Add hospital details if doctor is associated with a hospital
-        if doctor.hospital:
-            doctor_data["hospital"] = {
-                "id": doctor.hospital.id,
-                "name": doctor.hospital.name,
-                "address": doctor.hospital.address,
-                "latitude": str(doctor.hospital.latitude),
-                "longitude": str(doctor.hospital.longitude)
-            }
-        
-        return JsonResponse(doctor_data, safe=False)
-    
+        doctor = Doctor.objects.select_related('hospital').get(id=id)
+        serializer = DoctorSerializer(doctor)
+        return Response(serializer.data)
     except Doctor.DoesNotExist:
-        return JsonResponse({"error": "Doctor not found"}, status=404)
-
-    except Exception as e:
-        print(f"Error: {e}")  # Debugging
-        return JsonResponse({"error": "Something went wrong!"}, status=500)
-
-@api_view(['GET'])
-def recommend_doctors(request):
-    """
-    Recommend doctors based on query condition using ML model
-    """
-    try:
-        query = request.GET.get('query', '').strip()
-        specialization = request.GET.get('specialization')
-        user_latitude = request.GET.get('user_latitude')
-        user_longitude = request.GET.get('user_longitude')
-        limit = int(request.GET.get('limit', 10))
-        
-        # Get base queryset with select_related for hospital
-        doctors = Doctor.objects.select_related('hospital').all()
-        
-        if not doctors:
-            return Response({
-                'recommended_doctors': [],
-                'count': 0,
-                'message': 'No doctors found in the database'
-            })
-
-        # First try exact matches
-        if query:
-            exact_matches = doctors.filter(
-                Q(specialization__icontains=query) |
-                Q(conditions_treated__icontains=query.lower())
-            )
-            
-            if exact_matches.exists():
-                serializer = DoctorSerializer(exact_matches, many=True)
-                return Response({
-                    'recommended_doctors': serializer.data,
-                    'count': exact_matches.count(),
-                    'matched_by': 'exact_match'
-                })
-
-        # If no exact matches or no query, use the ML recommender
-        recommender = DoctorRecommender(n_estimators=100)
-        doctors_data = []
-        
-        for doc in doctors:
-            doc_data = {
-                'id': doc.id,
-                'name': doc.name,
-                'specialization': doc.specialization,
-                'experience_years': doc.experience_years,
-                'rating': doc.rating,
-                'patients_treated': doc.patients_treated,
-                'conditions_treated': doc.conditions_treated,
-                'consultation_fee_inr': doc.consultation_fee_inr,
-                'availability': doc.availability,
-                'mobile_number': doc.mobile_number,
-                'success_rate': doc.success_rate,
-                'hospital': {
-                    'id': doc.hospital.id,
-                    'name': doc.hospital.name,
-                    'address': doc.hospital.address,
-                    'latitude': float(doc.hospital.latitude),
-                    'longitude': float(doc.hospital.longitude)
-                }
-            }
-            doctors_data.append(doc_data)
-
-        # Train the recommender
-        if not recommender.fit(doctors_data):
-            return Response({
-                'error': 'Failed to train recommendation model'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        # Get recommendations
-        recommendations = recommender.recommend_doctors(
-            query=query,
-            specialization=specialization,
-            limit=limit
+        return Response(
+            {'error': 'Doctor not found'},
+            status=status.HTTP_404_NOT_FOUND
         )
-        
-        # If we have location data, sort by distance
-        if user_latitude and user_longitude:
-            try:
-                user_lat = float(user_latitude)
-                user_lon = float(user_longitude)
-                
-                # Add distance to each recommendation
-                for rec in recommendations:
-                    hospital = rec.get('hospital', {})
-                    if hospital and 'latitude' in hospital and 'longitude' in hospital:
-                        from math import radians, cos, sin, asin, sqrt
-                        
-                        def haversine_distance(lat1, lon1, lat2, lon2):
-                            R = 6371  # Earth radius in kilometers
-                            
-                            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-                            dlat = lat2 - lat1
-                            dlon = lon2 - lon1
-                            
-                            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-                            c = 2 * asin(sqrt(a))
-                            return R * c
-                        
-                        rec['distance_km'] = round(haversine_distance(
-                            user_lat, user_lon,
-                            float(hospital['latitude']),
-                            float(hospital['longitude'])
-                        ), 2)
-                    else:
-                        rec['distance_km'] = float('inf')
-                
-                # Sort by distance first, then by score
-                recommendations.sort(key=lambda x: (
-                    x.get('distance_km', float('inf')),
-                    -(x.get('rating', 0) * 0.4 + 
-                      min(x.get('experience_years', 0) / 20, 1.0) * 0.3 +
-                      x.get('success_rate', 0) * 0.3)
-                ))
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error processing location data: {e}")
-                # Continue without location sorting if there's an error
-                pass
-
-        return Response({
-            'recommended_doctors': recommendations[:limit],
-            'count': len(recommendations),
-            'matched_by': 'ml_recommender'
-        })
-
-    except Exception as e:
-        logger.error(f"Recommendation error: {str(e)}")
-        return Response({
-            'error': 'Failed to fetch recommendations',
-            'detail': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-@cache_page(60 * 5)  # Cache for 5 minutes
-def list_all_doctors(request):
-    """List all doctors in the database"""
-    try:
-        cache_key = 'all_doctors_list'
-        cached_doctors = cache.get(cache_key)
-        
-        if cached_doctors:
-            return Response(cached_doctors)
-
-        doctors = Doctor.objects.select_related('hospital').all()
-        doctor_count = doctors.count()
-        
-        serializer = DoctorSerializer(doctors, many=True)
-        response_data = {
-            'doctors': serializer.data,
-            'count': doctor_count
-        }
-        
-        cache.set(cache_key, response_data, timeout=60 * 5)
-        return Response(response_data)
-    except Exception as e:
-        logger.error(f"Error listing doctors: {str(e)}")
-        return Response({
-            'error': 'Failed to fetch doctors',
-            'detail': str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET', 'PUT'])
 def manage_doctor_profile(request, email=None):
     """
-    GET: Retrieves doctor profile by email
-    PUT: Updates doctor profile information
+    Get or update doctor profile
     """
-    if not email:
-        return JsonResponse({"error": "Email is required"}, status=400)
-    
     try:
-        # Find the doctor by matching the mobile number
-        # This assumes doctor's name format is "FirstName LastName" from user model
-        from user_management.models import User
-        user = User.objects.get(email=email, role='doctor')
+        doctor = Doctor.objects.get(mobile_number=request.user.mobile_number)
         
-        # Look for the doctor with the same mobile number
-        try:
-            doctor = Doctor.objects.get(mobile_number=user.mobile_number)
-        except Doctor.DoesNotExist:
-            # If doctor doesn't exist but user is a doctor, create doctor profile
-            doctor = Doctor.objects.create(
-                name=user.name,
-                mobile_number=user.mobile_number,
-                specialization="General"
-            )
+        if request.method == 'PUT':
+            data = request.data
+            doctor.name = data.get('name', doctor.name)
+            doctor.specialization = data.get('specialization', doctor.specialization)
+            doctor.experience_years = data.get('experience_years', doctor.experience_years)
+            doctor.availability = data.get('availability', doctor.availability)
+            doctor.consultation_fee_inr = data.get('consultation_fee_inr', doctor.consultation_fee_inr)
+            doctor.conditions_treated = data.get('conditions_treated', doctor.conditions_treated)
+            doctor.save()
         
-        if request.method == 'GET':
-            # Return doctor profile details
-            serializer = DoctorSerializer(doctor)
-            return Response(serializer.data)
-        
-        elif request.method == 'PUT':
-            serializer = DoctorSerializer(doctor, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                # Clear related cache keys
-                cache.delete(f"doctors_all")
-                cache.delete(f"doctors_{doctor.specialization.lower()}")
-                cache.delete("specialization_options")
-                
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-    except User.DoesNotExist:
-        return JsonResponse({"error": "Doctor not found"}, status=404)
+        serializer = DoctorSerializer(doctor)
+        return Response(serializer.data)
+    except Doctor.DoesNotExist:
+        return Response({'error': 'Doctor not found'}, status=404)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return Response({'error': str(e)}, status=400)
 
 class DoctorRegistrationView(APIView):
+    """
+    Register a new doctor with hospital details
+    """
     def post(self, request):
-        # Add required fields if not present
-        data = request.data.copy()
-        if 'consultation_fee_inr' not in data:
-            data['consultation_fee_inr'] = 0
-        if 'experience_years' not in data:
-            data['experience_years'] = 0
-        if 'availability' not in data:
-            data['availability'] = "Available"
-        if 'specialization' not in data:
-            data['specialization'] = "General"
-
-        serializer = DoctorRegistrationSerializer(data=data)
-        if serializer.is_valid():
-            try:
-                doctor = serializer.save()
-                return Response({
-                    'message': 'Doctor registered successfully',
-                    'doctor_id': doctor.id,
-                    'name': doctor.name,
-                    'specialization': doctor.specialization,
-                    'hospital': {
-                        'name': doctor.hospital.name,
-                        'address': doctor.hospital.address
+        try:
+            serializer = DoctorRegistrationSerializer(data=request.data)
+            if serializer.is_valid():
+                hospital_data = request.data.get('hospital', {})
+                hospital, _ = Hospital.objects.get_or_create(
+                    name=hospital_data.get('name'),
+                    defaults={
+                        'address': hospital_data.get('address', ''),
+                        'specialization': request.data.get('specialization', 'General'),
+                        'available_beds': hospital_data.get('available_beds', 0)
                     }
-                }, status=status.HTTP_201_CREATED)
-            except Exception as e:
-                return Response({
-                    'error': f'Failed to register doctor: {str(e)}'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                )
+                
+                doctor = serializer.save(hospital=hospital)
+                return Response(DoctorSerializer(doctor).data, status=201)
+            return Response(serializer.errors, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
 
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
@@ -531,81 +146,45 @@ def book_appointment(request):
         doctor_id = request.data.get('doctor_id')
         appointment_date = request.data.get('appointment_date')
         reason = request.data.get('reason', '')
-        
-        # Debugging logs
-        import traceback
-        print("book_appointment called with data:", request.data)
-        
-        # Validate input
+
         if not doctor_id or not appointment_date:
-            print("Validation failed: Missing doctor_id or appointment_date")
             return Response({
                 'error': 'Doctor ID and appointment date are required'
             }, status=status.HTTP_400_BAD_REQUEST)
-            
-        # Get the doctor
-        try:
-            doctor = Doctor.objects.get(id=doctor_id)
-        except Doctor.DoesNotExist:
-            print("Doctor not found for id:", doctor_id)
-            return Response({
-                'error': 'Doctor not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-            
-        # Check for appointment conflicts
-        try:
-            appointment_datetime = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
-        except ValueError:
-            print("Invalid appointment date format:", appointment_date)
-            return Response({
-                'error': 'Invalid appointment date format. Use ISO 8601 format.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        time_buffer = timedelta(minutes=30)
-        
-        # Adjust conflict check to exclude the current appointment if updating
-        conflicting_appointments = Appointment.objects.filter(
+
+        doctor = get_object_or_404(Doctor, id=doctor_id)
+        user = request.user
+
+        # Convert string to datetime
+        appointment_datetime = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
+
+        # Check for conflicts
+        if Appointment.objects.filter(
             doctor=doctor,
             appointment_date__range=[
-                appointment_datetime - time_buffer,
-                appointment_datetime + time_buffer
+                appointment_datetime - timedelta(minutes=30),
+                appointment_datetime + timedelta(minutes=30)
             ]
-        ).exists()
-        
-        # If conflict exists, check if it's the same appointment (for update scenarios)
-        if conflicting_appointments:
-            # Instead of blocking, allow if the conflict is with the same appointment (optional)
-            # Here, assuming this is a new booking, so block
-            print("Conflicting appointment exists for doctor id:", doctor_id)
+        ).exists():
             return Response({
-                'error': 'Doctor already has an appointment scheduled during this time'
+                'error': 'This time slot is already booked'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Use authenticated user only
-        user = request.user
-        
-        # Check if user is authenticated and active
-        if not user or not user.is_authenticated or not user.is_active:
-            print("User not authenticated or inactive:", user)
-            return Response({
-                'error': 'User must be logged in and active to book an appointment'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        
+
         # Create appointment
         appointment = Appointment.objects.create(
-            doctor=doctor,
             user=user,
-            appointment_date=appointment_date,
+            doctor=doctor,
+            appointment_date=appointment_datetime,
             reason=reason
         )
-        
-        serializer = AppointmentSerializer(appointment)
-        print("Appointment created successfully:", serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
+
+        return Response(AppointmentSerializer(appointment).data, status=status.HTTP_201_CREATED)
+
+    except Doctor.DoesNotExist:
+        return Response({
+            'error': 'Doctor not found'
+        }, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        print("Exception in book_appointment:", str(e))
-        traceback.print_exc()
         return Response({
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
@@ -619,7 +198,6 @@ def doctor_appointments(request):
     """
     try:
         user = request.user
-        print(f"Fetching appointments for user: {user.email} with role: {user.role}")
         
         if user.role != 'doctor':
             return Response({
@@ -627,7 +205,6 @@ def doctor_appointments(request):
             }, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            # Try to find doctor by mobile number first
             doctor = Doctor.objects.filter(
                 Q(mobile_number=user.mobile_number) | Q(name=user.name)
             ).first()
@@ -637,13 +214,9 @@ def doctor_appointments(request):
                     'error': 'Doctor profile not found. Please complete your doctor profile first.'
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            print(f"Found doctor: {doctor.name} with id: {doctor.id}")
-            
             appointments = Appointment.objects.filter(
                 doctor=doctor
             ).select_related('user').order_by('-appointment_date')
-            
-            print(f"Found {appointments.count()} appointments")
 
             now = timezone.now()
             appointment_data = []
@@ -662,17 +235,14 @@ def doctor_appointments(request):
                 }
                 appointment_data.append(data)
 
-            print(f"Returning {len(appointment_data)} appointments")
             return Response(appointment_data)
 
         except Exception as e:
-            print(f"Error fetching appointments: {str(e)}")
             return Response({
                 'error': f'Failed to fetch appointments: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     except Exception as e:
-        print(f"Error in doctor_appointments: {str(e)}")
         return Response({
             'error': 'An error occurred while fetching appointments'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -680,51 +250,39 @@ def doctor_appointments(request):
 class UserAppointmentsView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsUser]
-    
-    @method_decorator(cache_page(60))  # Cache for 1 minute
+
     def get(self, request):
         try:
-            user = request.user
-            # Generate a cache key unique to this user
-            cache_key = f'user_appointments_{user.id}'
-            cached_appointments = cache.get(cache_key)
-            
-            if cached_appointments:
-                return Response(cached_appointments)
-                
-            appointments = Appointment.objects.filter(user=user).select_related('doctor').order_by('-appointment_date')
-            serializer = AppointmentSerializer(appointments, many=True)
-            
-            # Cache the response
-            cache.set(cache_key, serializer.data, timeout=60)  # Cache for 1 minute
-            
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Failed to fetch user appointments: {str(e)}")
-            return Response({"error": "Failed to fetch user appointments"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-    def post(self, request):
-        # After successful appointment creation, invalidate the cache
-        cache.delete(f'user_appointments_{request.user.id}')
-        cache.delete('all_doctors_list')  # Also invalidate the doctors list cache as availability might have changed
+            appointments = Appointment.objects.filter(
+                user=request.user
+            ).select_related('doctor').order_by('-appointment_date')
 
-@api_view(['GET'])
-def user_appointments(request):
-    """
-    Get all appointments for the logged-in user
-    """
-    try:
-        # Get appointments for the logged-in user
-        appointments = Appointment.objects.filter(user=request.user).order_by('appointment_date')
-        
-        # Serialize and return appointments
-        serializer = AppointmentSerializer(appointments, many=True)
-        return Response(serializer.data)
-        
-    except Exception as e:
-        return Response({
-            'error': str(e)
-        }, status=status.HTTP_400_BAD_REQUEST)
+            now = timezone.now()
+            appointment_data = []
+
+            for appointment in appointments:
+                is_upcoming = appointment.appointment_date > now
+                doctor = appointment.doctor
+                data = {
+                    'id': appointment.id,
+                    'appointment_date': appointment.appointment_date,
+                    'reason': appointment.reason,
+                    'created_at': appointment.created_at,
+                    'doctor_name': doctor.name,
+                    'doctor_specialization': doctor.specialization,
+                    'doctor_mobile': doctor.mobile_number,
+                    'status': 'Upcoming' if is_upcoming else 'Past',
+                    'hospital_name': doctor.hospital.name if doctor.hospital else None,
+                    'hospital_address': doctor.hospital.address if doctor.hospital else None
+                }
+                appointment_data.append(data)
+
+            return Response(appointment_data)
+
+        except Exception as e:
+            return Response({
+                'error': f'Failed to fetch appointments: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 def check_appointment_conflict(request):
@@ -740,10 +298,8 @@ def check_appointment_conflict(request):
                 'error': 'Doctor ID and appointment date are required'
             }, status=status.HTTP_400_BAD_REQUEST)
             
-        # Get the doctor
         doctor = Doctor.objects.get(id=doctor_id)
         
-        # Check for appointments within 30 minutes of the requested time
         appointment_datetime = datetime.fromisoformat(appointment_date.replace('Z', '+00:00'))
         time_buffer = timedelta(minutes=30)
         
@@ -767,3 +323,101 @@ def check_appointment_conflict(request):
         return Response({
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+def get_doctor_recommendations(request):
+    """
+    Get personalized doctor recommendations based on disease and location
+    
+    Query Parameters:
+    - disease: The disease/condition to find doctors for
+    - lat: User's latitude (optional)
+    - lon: User's longitude (optional)
+    - radius_km: Search radius in kilometers (optional, default: 10)
+    - limit: Maximum number of recommendations (default: 10)
+    """
+    try:
+        # Get parameters
+        disease = request.GET.get('disease')
+        lat = request.GET.get('lat')
+        lon = request.GET.get('lon')
+        radius_km = float(request.GET.get('radius_km', 10))
+        limit = int(request.GET.get('limit', 10))
+        
+        # Get recommendations
+        recommendations = doctor_recommender.get_recommendations(
+            query_disease=disease,
+            user_lat=float(lat) if lat else None,
+            user_lon=float(lon) if lon else None,
+            radius_km=radius_km,
+            limit=limit
+        )
+        
+        # Format response with distance information
+        response_data = []
+        for doctor, score in recommendations:
+            doctor_data = {
+                'id': doctor.id,
+                'name': doctor.name,
+                'specialization': doctor.specialization,
+                'experience_years': doctor.experience_years,
+                'rating': doctor.rating,
+                'patients_treated': doctor.patients_treated,
+                'consultation_fee_inr': doctor.consultation_fee_inr,
+                'availability': doctor.availability,
+                'success_rate': doctor.success_rate,
+                'conditions_treated': doctor.conditions_treated,
+                'match_score': round(score * 100, 2),
+                'hospital': None
+            }
+            
+            if doctor.hospital:
+                distance_km = None
+                if lat and lon:
+                    from math import radians, sin, cos, sqrt, atan2
+                    R = 6371  # Earth's radius in km
+                    lat1, lon1 = radians(float(lat)), radians(float(lon))
+                    lat2, lon2 = radians(float(doctor.hospital.latitude)), radians(float(doctor.hospital.longitude))
+                    dlat = lat2 - lat1
+                    dlon = lon2 - lon1
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * atan2(sqrt(a), sqrt(1-a))
+                    distance_km = R * c
+                
+                doctor_data['hospital'] = {
+                    'name': doctor.hospital.name,
+                    'address': doctor.hospital.address,
+                    'latitude': str(doctor.hospital.latitude),
+                    'longitude': str(doctor.hospital.longitude),
+                    'distance_km': round(distance_km, 1) if distance_km else None,
+                    'facilities': doctor.hospital.facilities,
+                    'emergency_available': doctor.hospital.emergency_available,
+                    'available_beds': doctor.hospital.available_beds
+                }
+            
+            response_data.append(doctor_data)
+        
+        return Response({
+            'recommendations': response_data,
+            'model_info': {
+                'feature_importance': {
+                    'experience': round(doctor_recommender.feature_importance[0] * 100, 2),
+                    'rating': round(doctor_recommender.feature_importance[1] * 100, 2),
+                    'patients_treated': round(doctor_recommender.feature_importance[2] * 100, 2),
+                    'consultation_fee': round(doctor_recommender.feature_importance[3] * 100, 2),
+                    'success_rate': round(doctor_recommender.feature_importance[4] * 100, 2)
+                } if doctor_recommender.feature_importance is not None else None
+            }
+        })
+        
+    except (ValueError, TypeError) as e:
+        return Response(
+            {'error': f'Invalid parameters: {str(e)}'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f'Error in doctor recommendations: {str(e)}')
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

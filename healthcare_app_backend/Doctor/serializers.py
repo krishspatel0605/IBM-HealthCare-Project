@@ -20,11 +20,13 @@ class DoctorSerializer(serializers.ModelSerializer):
         
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Ensure conditions_treated is always a list
+        # Normalize conditions to lowercase and ensure it's a list
         if data['conditions_treated'] is None:
             data['conditions_treated'] = []
         elif isinstance(data['conditions_treated'], str):
-            data['conditions_treated'] = [x.strip() for x in data['conditions_treated'].split(',')]
+            data['conditions_treated'] = [x.strip().lower() for x in data['conditions_treated'].split(',')]
+        else:
+            data['conditions_treated'] = [str(x).strip().lower() for x in data['conditions_treated']]
         return data
 
 class DoctorRegistrationSerializer(serializers.ModelSerializer):

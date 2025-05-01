@@ -1,13 +1,13 @@
 from django.http import JsonResponse
 from .models import Hospital
 from django.core.cache import cache
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import HospitalSerializer
 from Doctor.models import Doctor
-import pandas as pd
-from recommendation_system.location_recommender import LocationBasedHospitalRecommender
+from models.hospital_recommender import HospitalRecommender
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,43 +32,7 @@ def get_hospitals(request):
 
     # Store result in cache
     cache.set(cache_key, hospital_list, timeout=300)  # Cache for 5 minutes
-
     return JsonResponse(hospital_list, safe=False)
-
-@api_view(['GET'])
-def get_nearest_hospitals(request):
-    """
-    API endpoint to get nearest hospitals based on user location and optional specialization filter.
-    Query params:
-        user_latitude: float
-        user_longitude: float
-        specialization: str (optional)
-        limit: int (optional, default 10)
-    """
-    try:
-        user_latitude = float(request.GET.get('user_latitude'))
-        user_longitude = float(request.GET.get('user_longitude'))
-    except (TypeError, ValueError):
-        return Response({"error": "Invalid or missing user_latitude or user_longitude"}, status=status.HTTP_400_BAD_REQUEST)
-
-    specialization = request.GET.get('specialization', None)
-    limit = int(request.GET.get('limit', 10))
-
-    hospitals_qs = Hospital.objects.all()
-    if specialization:
-        hospitals_qs = hospitals_qs.filter(specialization__iexact=specialization)
-
-    hospitals_df = pd.DataFrame(list(hospitals_qs.values()))
-
-    recommender = LocationBasedHospitalRecommender(hospitals_df)
-    recommended_hospitals = recommender.recommend_hospitals(
-        user_latitude=user_latitude,
-        user_longitude=user_longitude,
-        specialization=specialization,
-        limit=limit
-    )
-
-    return Response(recommended_hospitals, status=status.HTTP_200_OK)
 
 def get_disease_options(request):
     """
@@ -116,6 +80,69 @@ def Hospital_Details_View(request, id):
         return JsonResponse({"error": "Hospital not found"}, status=404)
 
     except Exception as e:
-        print(f"Error: {e}")  # Debugging
-        return JsonResponse({"error": "Something went wrong!"}, status=500)
+        logger.error(f"Error in Hospital_Details_View: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_hospital_recommendations(request):
+    """
+    Get hospital recommendations based on user location
+    Required query parameters:
+    - lat: user's latitude
+    - lon: user's longitude
+    Optional query parameters:
+    - radius_km: search radius in kilometers (default: 10)
+    - min_beds: minimum number of available beds (default: 1)
+    """
+    try:
+        # Get parameters from request
+        lat = request.GET.get('lat')
+        lon = request.GET.get('lon')
+        radius_km = float(request.GET.get('radius_km', 10))
+        min_beds = int(request.GET.get('min_beds', 1))
+
+        if not all([lat, lon]):
+            return Response(
+                {"error": "Latitude and longitude are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Initialize recommender
+        recommender = HospitalRecommender()
+        
+        # Get recommendations
+        recommendations = recommender.get_recommendations(
+            float(lat),
+            float(lon),
+            radius_km=radius_km,
+            min_beds=min_beds
+        )
+
+        # Format response
+        response_data = [{
+            "id": hospital.id,
+            "name": hospital.name,
+            "address": hospital.address,
+            "available_beds": hospital.available_beds,
+            "distance_score": round(score * 100, 2),
+            "latitude": str(hospital.latitude),
+            "longitude": str(hospital.longitude),
+            "specialization": hospital.specialization,
+            "doctors_count": hospital.doctors.count()
+        } for hospital, score in recommendations]
+
+        return Response(response_data)
+
+    except (ValueError, TypeError) as e:
+        return Response(
+            {"error": f"Invalid parameters: {str(e)}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        logger.error(f"Error in hospital recommendations: {str(e)}")
+        return Response(
+            {"error": "Internal server error"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 

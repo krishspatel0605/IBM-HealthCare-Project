@@ -559,49 +559,41 @@ const DoctorFinder = () => {
       setDbStatus('Searching for doctors...');
     
       try {
-        let apiUrl = `/recommend-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10`;
+        let apiUrl = `/recommendations/`;  // Updated URL to match backend
+        const params = new URLSearchParams();
         
-        if (userLatitude !== null && userLongitude !== null) {
-          apiUrl = `/recommend-nearest-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
+        if (searchTerm) {
+          params.append('disease', searchTerm.toLowerCase());
+        }
+        if (userLatitude && userLongitude) {
+          params.append('lat', userLatitude);
+          params.append('lon', userLongitude);
+          params.append('radius_km', 10);
         }
 
-        const response = await axiosInstance.get(apiUrl);
-        
-        if (response.data && response.data.recommended_doctors) {
-          const doctors = response.data.recommended_doctors.map(doctor => {
-            const conditions = doctor.conditions_treated 
-              ? (Array.isArray(doctor.conditions_treated) 
-                  ? doctor.conditions_treated 
-                  : doctor.conditions_treated.split(',').map(c => c.trim()))
-              : [];
-
-            const treats_searched_condition = 
-              doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              conditions.some(condition => 
-                condition.toLowerCase().includes(searchTerm.toLowerCase())
-              );
-
-            return {
-              ...doctor,
-              conditions_treated: conditions,
-              treats_searched_condition
-            };
-          });
+        const response = await axiosInstance.get(`${apiUrl}?${params.toString()}`);
+        if (response.data && response.data.recommendations) {
+          const doctors = response.data.recommendations.map(doctor => ({
+            ...doctor,
+            conditions_treated: Array.isArray(doctor.conditions_treated) 
+              ? doctor.conditions_treated 
+              : (doctor.conditions_treated ? [doctor.conditions_treated] : [])
+          }));
 
           setDoctors(doctors);
           setTotalPages(Math.ceil(doctors.length / doctorsPerPage));
           setUsingDummyData(false);
           
           if (doctors.length > 0) {
-            setDbStatus(`Found ${doctors.length} doctors treating "${searchTerm}"`);
+            setDbStatus(`Found ${doctors.length} doctors${userLatitude ? ' near you' : ''} matching "${searchTerm}"`);
             setError('');
           } else {
-            setError(`No doctors found treating "${searchTerm}"`);
+            setError(`No doctors found${userLatitude ? ' in your area' : ''} matching "${searchTerm}". Try a different condition or expand your search area.`);
           }
         } else {
           setDoctors([]);
           setTotalPages(1);
-          setError(`No doctors found treating "${searchTerm}"`);
+          setError(`No doctors found matching "${searchTerm}". Please try a different search term.`);
         }
       } catch (error) {
         handleSearchError(error, searchTerm);
@@ -609,7 +601,7 @@ const DoctorFinder = () => {
         setLoading(false);
       }
     }, 1000);
-  }, [currentPage, doctorsPerPage, userLatitude, userLongitude]);
+  }, [userLatitude, userLongitude, doctorsPerPage]);
 
   useEffect(() => {
     return () => {

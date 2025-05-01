@@ -72,7 +72,7 @@ class Doctor(models.Model):
         spec_lower = self.specialization.lower()
         if spec_lower in self.SPECIALIZATION_CONDITIONS:
             base_conditions = set(self.SPECIALIZATION_CONDITIONS[spec_lower])
-            current_conditions = set(self.conditions_treated)
+            current_conditions = set(c.lower() for c in self.conditions_treated)
             self.conditions_treated = list(current_conditions | base_conditions)
 
     def save(self, *args, **kwargs):

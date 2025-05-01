@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import get_hospitals, get_disease_options, Hospital_Details_View
+from . import views
 
 urlpatterns = [
-    path('hospitals/', get_hospitals, name='get-hospitals'),
-    path('disease-options/', get_disease_options, name='disease-options'),
-    path('hospital_details/<int:id>/', Hospital_Details_View, name='hospital_details'),   
+    path('list/', views.get_hospitals, name='hospital-list'),
+    path('diseases/', views.get_disease_options, name='disease-options'),
+    path('details/<int:id>/', views.Hospital_Details_View, name='hospital-details'),
+    path('recommendations/', views.get_hospital_recommendations, name='hospital-recommendations'),
 ]
