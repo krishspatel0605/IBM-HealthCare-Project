@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def save_model(model: Any, filepath: str) -> bool:
     """
-    Save the trained model to a file
+    Save the trained model to a file with all fields
     
     Args:
         model: Trained model instance
@@ -27,7 +27,10 @@ def save_model(model: Any, filepath: str) -> bool:
                 'doctors_df': model.doctors_df,
                 'numeric_features': model.numeric_features,
                 'categorical_features': model.categorical_features,
-                'n_estimators': model.n_estimators
+                'n_estimators': model.n_estimators,
+                'cv_scores': getattr(model, 'cv_scores', None),
+                'feature_importances_': getattr(model, 'feature_importances_', None),
+                'condition_weights_history': getattr(model, 'condition_weights_history', {})
             }, f)
         logger.info(f"Model saved successfully to {filepath}")
         return True
@@ -59,24 +62,23 @@ def load_model(filepath: str) -> Any:
 def preprocess_doctor_data(doctor: Dict[str, Any]) -> Dict[str, Any]:
     """
     Preprocess a single doctor's data for the recommendation system
-    
-    Args:
-        doctor: Dictionary containing doctor information
-        
-    Returns:
-        Preprocessed doctor data
     """
     processed = doctor.copy()
     
-    # Ensure numeric fields are float/int
+    # Ensure numeric fields are float/int with consistent naming
     try:
-        processed['experience'] = float(doctor.get('experience', 0))
+        # Use experience_years consistently instead of experience
+        processed['experience_years'] = float(doctor.get('experience_years', doctor.get('experience', 0)))
         processed['rating'] = float(doctor.get('rating', 0))
         processed['patients_treated'] = int(doctor.get('patients_treated', 0))
+        processed['consultation_fee_inr'] = float(doctor.get('consultation_fee_inr', doctor.get('fee', 500)))
+        processed['success_rate'] = float(doctor.get('success_rate', doctor.get('rating', 0)) / 5.0 * 100)
     except (ValueError, TypeError):
-        processed['experience'] = 0.0
+        processed['experience_years'] = 0.0
         processed['rating'] = 0.0
         processed['patients_treated'] = 0
+        processed['consultation_fee_inr'] = 500.0
+        processed['success_rate'] = 0.0
     
     # Ensure conditions_treated is a list
     conditions = doctor.get('conditions_treated', [])

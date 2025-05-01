@@ -21,22 +21,62 @@ class Doctor(models.Model):
     patients_treated = models.PositiveIntegerField(default=0)
     rating = models.FloatField(default=4.0)
     conditions_treated = models.JSONField(default=list, blank=True)
+    success_rate = models.FloatField(default=0.0)  # Added success rate field
     
-    # Hospital relationship - allowing multiple doctors per hospital
+    # Hospital relationship
     hospital = models.ForeignKey(
         Hospital, 
         on_delete=models.CASCADE, 
         related_name='doctors'
     )
 
+    SPECIALIZATION_CONDITIONS = {
+        'cardiology': ['heart disease', 'hypertension', 'arrhythmia', 'heart failure'],
+        'pulmonology': ['asthma', 'copd', 'bronchitis', 'pneumonia', 'tuberculosis'],
+        'neurology': ['migraine', 'epilepsy', 'stroke', 'parkinsons disease'],
+        'orthopedics': ['arthritis', 'back pain', 'fracture', 'osteoporosis'],
+        'dermatology': ['acne', 'eczema', 'psoriasis', 'skin infection'],
+        'gastroenterology': ['ulcer', 'ibs', 'hepatitis', 'gastrointestinal diseases'],
+        'endocrinology': ['diabetes', 'thyroid disorders', 'hormonal imbalance'],
+        'general': ['fever', 'cold', 'flu', 'general checkup']
+    }
+
     class Meta:
         db_table = 'doctors'
+        indexes = [
+            models.Index(fields=['specialization']),
+            models.Index(fields=['rating']),
+            models.Index(fields=['experience_years'])
+        ]
 
     def __str__(self):
         return f"Dr. {self.name} ({self.specialization})"
 
+    def clean_conditions(self):
+        """Clean and standardize conditions_treated"""
+        if not self.conditions_treated:
+            self.conditions_treated = []
+            return
+
+        if isinstance(self.conditions_treated, str):
+            conditions = [c.strip().lower() for c in self.conditions_treated.split(',')]
+        else:
+            conditions = [str(c).strip().lower() for c in self.conditions_treated]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        self.conditions_treated = [x for x in conditions if not (x in seen or seen.add(x))]
+
+    def add_specialization_conditions(self):
+        """Add common conditions based on specialization"""
+        spec_lower = self.specialization.lower()
+        if spec_lower in self.SPECIALIZATION_CONDITIONS:
+            base_conditions = set(self.SPECIALIZATION_CONDITIONS[spec_lower])
+            current_conditions = set(self.conditions_treated)
+            self.conditions_treated = list(current_conditions | base_conditions)
+
     def save(self, *args, **kwargs):
-        # Ensure coordinates are updated when hospital changes
+        # Update hospital coordinates if needed
         if self.hospital and (not self.hospital.latitude or not self.hospital.longitude):
             from user_management.utils import get_coordinates_from_address
             lat, lon = get_coordinates_from_address(self.hospital.address)
@@ -45,18 +85,13 @@ class Doctor(models.Model):
                 self.hospital.longitude = lon
                 self.hospital.save()
 
-        # Ensure conditions_treated is always a list of lowercase strings
-        if self.conditions_treated:
-            if isinstance(self.conditions_treated, str):
-                self.conditions_treated = [c.strip().lower() for c in self.conditions_treated.split(',')]
-            else:
-                self.conditions_treated = [str(c).strip().lower() for c in self.conditions_treated]
-        else:
-            self.conditions_treated = []
-            
-        # Automatically add common conditions based on specialization
-        if self.specialization.lower() in ['pulmonology', 'respiratory medicine', 'chest medicine']:
-            common_conditions = ['asthma', 'copd', 'bronchitis', 'pneumonia']
-            self.conditions_treated = list(set(self.conditions_treated + common_conditions))
-            
+        # Clean and standardize conditions
+        self.clean_conditions()
+        
+        # Add specialization-specific conditions
+        self.add_specialization_conditions()
+
+        # Ensure rating is within bounds
+        self.rating = max(0.0, min(5.0, self.rating))
+        
         super().save(*args, **kwargs)

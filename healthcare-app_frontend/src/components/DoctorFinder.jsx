@@ -1,32 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt, FaMapMarkerAlt, FaArrowLeft } from 'react-icons/fa';
+import { FaSearch, FaUser, FaStar, FaBriefcase, FaClock, FaMoneyBillWave, FaPhoneAlt, FaExclamationTriangle, FaStethoscope, FaDatabase, FaInfoCircle, FaHistory, FaBookmark, FaRegStar, FaStarHalfAlt, FaMapMarkerAlt, FaArrowLeft, FaRoute, FaCalendarAlt } from 'react-icons/fa';
 import { MdLocalHospital, MdAccountCircle } from 'react-icons/md';
 import { toast } from 'react-toastify';
 import _ from 'lodash';
 
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
-  // Try different possible backend URLs in order of preference
   const possibleUrls = [
-    'http://localhost:8000/api',  // Default development URL
-    'http://127.0.0.1:8000/api',  // Alternative localhost URL
-    window.location.origin + '/api' // Same-origin API for production
+    'http://localhost:8000/api',
+    'http://127.0.0.1:8000/api',
+    window.location.origin + '/api'
   ];
-  // Get stored URL from localStorage if available
   const storedUrl = localStorage.getItem('api_base_url');
   if (storedUrl) {
     return storedUrl;
   }
-  return possibleUrls[0]; // Default to first option
+  return possibleUrls[0];
 };
 
 const API_BASE_URL = getApiBaseUrl();
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Increased to 30 seconds
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -35,12 +33,8 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-    console.log('Axios request interceptor - token:', token);
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-      console.log('Authorization header set:', config.headers['Authorization']);
-    } else {
-      console.log('No auth token found, Authorization header not set');
     }
     return config;
   },
@@ -57,9 +51,7 @@ axiosInstance.interceptors.response.use(
     
     if (error.code === 'ECONNABORTED' && config.retryCount < 2) {
       config.retryCount += 1;
-      // Exponential backoff: wait 1s, then 2s before retrying
       await new Promise(resolve => setTimeout(resolve, 1000 * config.retryCount));
-      console.log(`Request timed out, retrying (${config.retryCount}/2)...`);
       return axiosInstance(config);
     }
 
@@ -67,12 +59,10 @@ axiosInstance.interceptors.response.use(
       throw new Error('The request took too long to respond after multiple retries. Please try again later.');
     }
 
-    // Handle 401 Unauthorized globally
     if (response && response.status === 401) {
-      console.warn('Received 401 Unauthorized response. Clearing auth token and redirecting to login.');
       localStorage.removeItem('auth_token');
       sessionStorage.removeItem('auth_token');
-      window.location.href = '/login'; // Redirect to login page
+      window.location.href = '/login';
       return Promise.reject(error);
     }
 
@@ -80,7 +70,6 @@ axiosInstance.interceptors.response.use(
   }
 );
 
-// Helper function to try alternative API URLs if the main one fails
 const tryAlternativeApiUrls = async (endpoint, retryCount = 0) => {
   const possibleUrls = [
     'http://localhost:8000/api',
@@ -88,41 +77,31 @@ const tryAlternativeApiUrls = async (endpoint, retryCount = 0) => {
     window.location.origin + '/api'
   ];
   
-  // Don't retry more than available URLs
   if (retryCount >= possibleUrls.length) {
     throw new Error('All API URL options failed');
   }
   
   try {
     const response = await axiosInstance.get(`${possibleUrls[retryCount]}/${endpoint}`);
-    
-    // If successful, save this working URL for future use
     localStorage.setItem('api_base_url', possibleUrls[retryCount]);
-    console.log(`Connection established with: ${possibleUrls[retryCount]}`);
-    
     return response;
   } catch (error) {
-    console.error(`Failed to connect to ${possibleUrls[retryCount]}: ${error.message}`);
-    // Try the next URL
     return tryAlternativeApiUrls(endpoint, retryCount + 1);
   }
 };
 
-// Common conditions for suggestions
 const COMMON_CONDITIONS = [
   "Asthma", "Diabetes", "Heart Disease", "Hypertension", 
   "Arthritis", "Depression", "Anxiety", "Cancer", 
   "Allergies", "COPD", "Bronchitis", "Skin Conditions"
 ];
 
-// Common specialties for suggestions
 const COMMON_SPECIALTIES = [
   "Cardiology", "Dermatology", "Neurology", "Pulmonology",
   "Pediatrics", "Orthopedics", "Gynecology", "Urology",
   "Psychiatry", "Oncology", "Gastroenterology"
 ];
 
-// Fallback dummy doctors data for when API fails
 const DUMMY_DOCTORS = [
   {
     id: 1,
@@ -162,24 +141,20 @@ const DUMMY_DOCTORS = [
   }
 ];
 
-// Star rating component for visual display
 const StarRating = ({ rating }) => {
   const stars = [];
   const fullStars = Math.floor(rating);
   const hasHalfStar = rating - fullStars >= 0.5;
   const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
   
-  // Add full stars
   for (let i = 0; i < fullStars; i++) {
     stars.push(<FaStar key={`full-${i}`} className="text-yellow-400" />);
   }
   
-  // Add half star if needed
   if (hasHalfStar) {
     stars.push(<FaStarHalfAlt key="half" className="text-yellow-400" />);
   }
   
-  // Add empty stars
   for (let i = 0; i < emptyStars; i++) {
     stars.push(<FaRegStar key={`empty-${i}`} className="text-yellow-400" />);
   }
@@ -191,6 +166,147 @@ const StarRating = ({ rating }) => {
     </div>
   );
 };
+
+const DoctorCard = ({ doctor, onBookAppointment, searchQuery }) => (
+  <div className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl ${doctor.treats_searched_condition ? 'border-l-4 border-green-500' : ''}`}>
+    <div className="bg-blue-600 text-white p-4">
+      <div className="flex items-start gap-2">
+        <FaUser className="mt-1" />
+        <div>
+          <h3 className="text-xl font-bold">{doctor.name}</h3>
+          <p className="text-lg">{doctor.specialization}</p>
+          {doctor.hospital && (
+            <div className="mt-2">
+              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                <MdLocalHospital className="text-blue-200" size={14} />
+                {doctor.hospital.name}
+              </p>
+              <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                <FaMapMarkerAlt className="text-blue-200" size={14} />
+                {doctor.hospital.address}
+              </p>
+              {doctor.distance_km && (
+                <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
+                  <FaRoute className="text-blue-200" size={14} />
+                  {doctor.distance_km.toFixed(1)} km away
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+    
+    <div className="p-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="flex items-center gap-2">
+          <div className="bg-blue-50 p-2 rounded-md">
+            <FaBriefcase className="text-blue-600" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Experience</p>
+            <p className="font-medium text-gray-900">{doctor.experience_years} years</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="bg-yellow-50 p-2 rounded-md">
+            <FaStar className="text-yellow-600" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Rating</p>
+            <div className="flex items-center gap-1">
+              <StarRating rating={doctor.rating} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="bg-green-50 p-2 rounded-md">
+            <FaUser className="text-green-600" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Patients Treated</p>
+            <p className="font-medium text-gray-900">{doctor.patients_treated || 'N/A'}</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="bg-purple-50 p-2 rounded-md">
+            <FaClock className="text-purple-600" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Availability</p>
+            <p className="font-medium text-gray-900">{doctor.availability}</p>
+          </div>
+        </div>
+      </div>
+      
+      {/* Consultation Fee */}
+      <div className="mt-4">
+        <div className="flex items-center gap-2">
+          <div className="bg-teal-50 p-2 rounded-md">
+            <FaMoneyBillWave className="text-teal-600" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Consultation Fee</p>
+            <p className="font-medium text-gray-900">
+              ₹{doctor.consultation_fee_inr || doctor.fee || 'N/A'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Distance info if available */}
+      {doctor.distance_km !== undefined && (
+        <div className="mt-4">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-50 p-2 rounded-md">
+              <FaRoute className="text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Distance</p>
+              <p className="font-medium text-gray-900">
+                {doctor.distance_km < 1 ? 
+                  `${(doctor.distance_km * 1000).toFixed(0)}m away` : 
+                  `${doctor.distance_km.toFixed(1)}km away`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {doctor.conditions_treated && doctor.conditions_treated.length > 0 && (
+        <div className="mt-4">
+          <p className="text-sm text-gray-500 mb-2">Specializes in treating:</p>
+          <div className="flex flex-wrap gap-1">
+            {doctor.conditions_treated.map((condition, index) => (
+              <span 
+                key={index}
+                className={`text-xs px-2 py-1 rounded-full ${
+                  doctor.treats_searched_condition && 
+                  condition.toLowerCase().includes(searchQuery.toLowerCase())
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-blue-50 text-blue-700'
+                }`}
+              >
+                {condition}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => onBookAppointment(doctor)}
+        className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+      >
+        <FaCalendarAlt />
+        Book Appointment
+      </button>
+    </div>
+  </div>
+);
 
 const DoctorFinder = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,11 +325,9 @@ const DoctorFinder = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [paginatedDoctors, setPaginatedDoctors] = useState([]);
 
-  // New state for user location
   const [userLatitude, setUserLatitude] = useState(null);
   const [userLongitude, setUserLongitude] = useState(null);
   
-  // User-related state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [recentSearches, setRecentSearches] = useState([]);
@@ -229,22 +343,18 @@ const DoctorFinder = () => {
   
   const location = useLocation();
   
-  // Check authentication on mount
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
-      // Save the current URL for redirect after login
       sessionStorage.setItem('redirectUrl', '/find-doctor' + location.search);
       navigate('/login');
       return;
     }
   }, [navigate, location]);
 
-  // Check user login status on component mount and on location change for debugging
   useEffect(() => {
     const checkLoginStatus = () => {
       const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
-      console.log('Checking login status on DoctorFinder page load. Token:', token);
       if (token) {
         setIsLoggedIn(true);
         fetchUserData(token);
@@ -258,7 +368,6 @@ const DoctorFinder = () => {
     checkLoginStatus();
   }, [location]);
   
-  // Fetch user data
   const fetchUserData = async () => {
     try {
       const response = await axiosInstance.get(`/user-profile/`);
@@ -268,43 +377,36 @@ const DoctorFinder = () => {
     }
   };
   
-  // Fetch user's recent searches
   const fetchUserRecentSearches = async () => {
     try {
       const response = await axiosInstance.get(`/user-searches/`);
       setRecentSearches(response.data.searches || []);
     } catch (error) {
       console.error('Error fetching recent searches:', error);
-      // Set some sample recent searches for demonstration
       setRecentSearches(['Asthma', 'Diabetes', 'Heart Disease']);
     }
   };
   
-  // Fetch user's saved doctors
   const fetchUserSavedDoctors = async () => {
     try {
       const response = await axiosInstance.get(`/saved-doctors/`);
       setSavedDoctors(response.data.doctors || []);
     } catch (error) {
       console.error('Error fetching saved doctors:', error);
-      // Set some sample saved doctors for demonstration
       setSavedDoctors([]);
     }
   };
   
-  // Fetch recommended conditions based on user profile
   const fetchRecommendedConditions = async () => {
     try {
       const response = await axiosInstance.get(`/recommended-conditions/`);
       setRecommendedConditions(response.data.conditions || []);
     } catch (error) {
       console.error('Error fetching recommended conditions:', error);
-      // Set some sample recommended conditions based on common health issues
       setRecommendedConditions(['Asthma', 'Diabetes', 'Heart Disease']);
     }
   };
   
-  // Save search to user history
   const saveSearchToHistory = async (query) => {
     if (!isLoggedIn || !query.trim()) return;
     
@@ -313,7 +415,6 @@ const DoctorFinder = () => {
         query: query
       });
       
-      // Update recent searches list
       setRecentSearches(prev => {
         const newSearches = [query, ...prev.filter(s => s !== query)].slice(0, 5);
         return newSearches;
@@ -323,7 +424,6 @@ const DoctorFinder = () => {
     }
   };
   
-  // Save doctor to user's favorites
   const saveDoctor = async (doctorId) => {
     if (!isLoggedIn) {
       alert('Please log in to save doctors to your favorites');
@@ -335,7 +435,6 @@ const DoctorFinder = () => {
         doctor_id: doctorId
       });
       
-      // Update saved doctors UI
       setSavedDoctors(prev => [...prev, doctors.find(d => d.id === doctorId)]);
       alert('Doctor saved to your favorites');
     } catch (error) {
@@ -344,12 +443,10 @@ const DoctorFinder = () => {
     }
   };
 
-  // Get query parameter from URL when component mounts
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const queryFromURL = queryParams.get('query');
 
-    // Request user location on component mount
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -357,18 +454,15 @@ const DoctorFinder = () => {
           setUserLongitude(position.coords.longitude);
         },
         (error) => {
-          console.warn('Geolocation permission denied or unavailable:', error.message);
           setUserLatitude(null);
           setUserLongitude(null);
         }
       );
     } else {
-      console.warn('Geolocation is not supported by this browser.');
       setUserLatitude(null);
       setUserLongitude(null);
     }
     
-    // Load all doctors to check if database has data
     loadAllDoctors();
     
     if (queryFromURL) {
@@ -377,7 +471,6 @@ const DoctorFinder = () => {
     }
   }, [location.search]);
 
-  // Load all doctors from the database to check if any data exists
   const loadAllDoctors = async () => {
     setDbStatus('Attempting to connect to database...');
     try {
@@ -385,18 +478,13 @@ const DoctorFinder = () => {
       
       let response;
       try {
-        // First try the main API URL
         response = await axiosInstance.get(`/list-all-doctors/?limit=100`);
       } catch (initialError) {
-        console.log("Initial API URL failed, trying alternatives");
-        // If that fails, try alternative URLs
         response = await tryAlternativeApiUrls('list-all-doctors/?limit=100');
       }
       
       if (response.data && response.data.doctors) {
-        // Normalize conditions_treated in all doctors
         const normalizedDoctors = response.data.doctors.map(doctor => {
-          // Ensure conditions_treated is always an array
           let conditions = [];
           if (doctor.conditions_treated) {
             conditions = Array.isArray(doctor.conditions_treated) ? doctor.conditions_treated : 
@@ -417,11 +505,8 @@ const DoctorFinder = () => {
         }
       }
     } catch (err) {
-      console.error('Error loading all doctors:', err);
-      
       let connectionErrorMsg = 'Database connection failed.';
       
-      // Only show dummy data for connection-related errors
       if (err.message && err.message.includes('Network Error')) {
         connectionErrorMsg = 'Network error: Unable to connect to the database server. Please check if the backend server is running.';
         setAllDoctors(DUMMY_DOCTORS);
@@ -435,11 +520,9 @@ const DoctorFinder = () => {
         } else {
           connectionErrorMsg = `Database error: ${status} - ${err.response.statusText}`;
         }
-        // Don't show dummy data for HTTP errors
         setAllDoctors([]);
       } else if (err.request) {
         connectionErrorMsg = 'No response received from database server. Server may be down.';
-        // Show dummy data for connection errors
         setAllDoctors(DUMMY_DOCTORS);
         setUsingDummyData(true);
       } else {
@@ -451,7 +534,6 @@ const DoctorFinder = () => {
     }
   };
 
-  // Filter suggestions based on input
   useEffect(() => {
     if (searchQuery && searchQuery.length > 1) {
       const query = searchQuery.toLowerCase();
@@ -480,7 +562,6 @@ const DoctorFinder = () => {
         let apiUrl = `/recommend-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10`;
         
         if (userLatitude !== null && userLongitude !== null) {
-          // Use location-based recommendation endpoint if location is available
           apiUrl = `/recommend-nearest-doctors/?query=${encodeURIComponent(searchTerm.toLowerCase())}&page=${currentPage}&limit=10&user_latitude=${userLatitude}&user_longitude=${userLongitude}`;
         }
 
@@ -488,14 +569,12 @@ const DoctorFinder = () => {
         
         if (response.data && response.data.recommended_doctors) {
           const doctors = response.data.recommended_doctors.map(doctor => {
-            // Normalize conditions_treated to always be an array
             const conditions = doctor.conditions_treated 
               ? (Array.isArray(doctor.conditions_treated) 
                   ? doctor.conditions_treated 
                   : doctor.conditions_treated.split(',').map(c => c.trim()))
               : [];
 
-            // Check if doctor treats the searched condition
             const treats_searched_condition = 
               doctor.specialization?.toLowerCase().includes(searchTerm.toLowerCase()) ||
               conditions.some(condition => 
@@ -532,7 +611,6 @@ const DoctorFinder = () => {
     }, 1000);
   }, [currentPage, doctorsPerPage, userLatitude, userLongitude]);
 
-  // Clean up function
   useEffect(() => {
     return () => {
       if (memoizedFetchDoctors.cancel) {
@@ -541,18 +619,15 @@ const DoctorFinder = () => {
     };
   }, [memoizedFetchDoctors]);
 
-  // Update performSearch to use memoized function
   const performSearch = (searchTerm) => {
     memoizedFetchDoctors(searchTerm);
   };
 
   const handleSearchError = (error, searchTerm) => {
-    console.error("Error searching doctors:", error);
     setError(`An error occurred while searching for doctors. Please try again later.`);
     setDoctors([]);
     setTotalPages(1);
     
-    // Set appropriate error message based on error type
     if (error.response) {
       const status = error.response.status;
       if (status === 500) {
@@ -562,11 +637,9 @@ const DoctorFinder = () => {
       } else {
         setDbStatus(`Database error: ${status} - ${error.response.statusText}`);
       }
-      // Don't show dummy data for HTTP errors that aren't connection related
       return;
     } else if (error.request) {
       setDbStatus('No response received from database server. Server may be down.');
-      // Only show dummy data for connection errors
       setDoctors(DUMMY_DOCTORS.filter(doc => 
         doc.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
         doc.conditions_treated.some(condition => 
@@ -581,13 +654,9 @@ const DoctorFinder = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    
-    // Remove navigation - just perform the search directly
-    // Update URL without page navigation using history.replaceState
     const url = new URL(window.location);
     url.searchParams.set('query', searchQuery);
     window.history.replaceState({}, '', url);
-    
     performSearch(searchQuery);
     setSearchPerformed(true);
   };
@@ -595,13 +664,9 @@ const DoctorFinder = () => {
   const handleSuggestionClick = (suggestion) => {
     setSearchQuery(suggestion);
     setShowSuggestions(false);
-    
-    // Remove navigation - just perform the search directly
-    // Update URL without page navigation
     const url = new URL(window.location);
     url.searchParams.set('query', suggestion);
     window.history.replaceState({}, '', url);
-    
     performSearch(suggestion);
     setSearchPerformed(true);
   };
@@ -612,7 +677,6 @@ const DoctorFinder = () => {
     }
   };
 
-  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = () => {
       setShowSuggestions(false);
@@ -629,12 +693,10 @@ const DoctorFinder = () => {
     }
   };
 
-  // Calculate paginated doctors whenever doctors array or page changes
   useEffect(() => {
     const indexOfLastDoctor = currentPage * doctorsPerPage;
     const indexOfFirstDoctor = indexOfLastDoctor - doctorsPerPage;
     setPaginatedDoctors(doctors.slice(indexOfFirstDoctor, indexOfLastDoctor));
-    // Update total pages based on doctors length
     setTotalPages(Math.ceil(doctors.length / doctorsPerPage));
   }, [doctors, currentPage, doctorsPerPage]);
 
@@ -670,10 +732,7 @@ const DoctorFinder = () => {
       });
 
       if (response.data) {
-        // Success alerts
         alert('🎉 Appointment Booked Successfully!\n\nDoctor: ' + selectedDoctor.name + '\nDate: ' + new Date(bookingDate).toLocaleString() + (bookingReason ? '\nReason: ' + bookingReason : ''));
-        
-        // Toast notifications
         toast.success('🎉 Appointment Booked Successfully!', {
           duration: 5000,
           icon: '✅'
@@ -698,7 +757,6 @@ const DoctorFinder = () => {
         setBookingReason('');
       }
     } catch (error) {
-      // Error alerts
       const errorMessage = error.response?.data?.error || 'Unable to book appointment. Please try again.';
       alert('❌ Error: ' + errorMessage);
       
@@ -819,7 +877,6 @@ const DoctorFinder = () => {
                 className="w-full pl-16 pr-4 py-4 rounded-lg border border-blue-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 shadow-sm hover:shadow-md"
               />
               
-              {/* Suggestions dropdown with enhanced UI */}
               {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto transition-all duration-300">
                   <div className="p-2 bg-gray-50 text-gray-500 text-xs font-medium">
@@ -870,7 +927,6 @@ const DoctorFinder = () => {
                   key={index}
                   onClick={() => {
                     setSearchQuery(condition);
-                    // Remove navigation, just update URL and perform search
                     const url = new URL(window.location);
                     url.searchParams.set('query', condition);
                     window.history.replaceState({}, '', url);
@@ -896,7 +952,6 @@ const DoctorFinder = () => {
             </button>
           </div>
           
-          {/* Improved error message display */}
           {error && (
             <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm">
               <div className="flex">
@@ -936,7 +991,6 @@ const DoctorFinder = () => {
           )}
         </div>
 
-        {/* Show all doctors section */}
         {showAllDoctors && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">All Doctors in Database ({allDoctors.length})</h2>
@@ -983,7 +1037,6 @@ const DoctorFinder = () => {
           </div>
         )}
 
-        {/* Search results header */}
         {searchPerformed && doctors.length > 0 && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -1041,7 +1094,6 @@ const DoctorFinder = () => {
                           key={index}
                           onClick={() => {
                             setSearchQuery(condition);
-                            // Remove navigation, just update URL and perform search
                             const url = new URL(window.location);
                             url.searchParams.set('query', condition);
                             window.history.replaceState({}, '', url);
@@ -1061,119 +1113,15 @@ const DoctorFinder = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {paginatedDoctors.map((doctor) => (
-                <div key={doctor.id} className={`bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl ${doctor.treats_searched_condition ? 'border-l-4 border-green-500' : ''}`}>
-                  <div className="bg-blue-600 text-white p-4">
-                    <div className="flex items-start gap-2">
-                      <FaUser className="mt-1" />
-                      <div>
-                        <h3 className="text-xl font-bold">{doctor.name}</h3>
-                        <p className="text-lg">{doctor.specialization}</p>
-                        {doctor.hospital && typeof doctor.hospital === 'object' ? (
-                          <div className="mt-2">
-                            <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
-                              <MdLocalHospital className="text-blue-200" size={14} />
-                              {doctor.hospital.name || ''}
-                            </p>
-                            <p className="text-sm text-blue-100 mt-1 flex items-center gap-1">
-                              <FaMapMarkerAlt className="text-blue-200" size={14} />
-                              {doctor.hospital.address || ''}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Experience */}
-                      <div className="flex items-center gap-2">
-                        <div className="bg-blue-50 p-2 rounded-md">
-                          <FaBriefcase className="text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Experience</p>
-                          <p className="font-medium text-gray-900">{doctor.experience_years} years</p>
-                        </div>
-                      </div>
-                      
-                      {/* Rating */}
-                      <div className="flex items-center gap-2">
-                        <div className="bg-yellow-50 p-2 rounded-md">
-                          <FaStar className="text-yellow-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Rating</p>
-                          <div className="flex items-center gap-1">
-                            <StarRating rating={doctor.rating} />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Patients Treated */}
-                      <div className="flex items-center gap-2">
-                        <div className="bg-green-50 p-2 rounded-md">
-                          <FaUser className="text-green-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Patients Treated</p>
-                          <p className="font-medium text-gray-900">{doctor.patients_treated || 'N/A'}</p>
-                        </div>
-                      </div>
-                      
-                      {/* Availability */}
-                      <div className="flex items-center gap-2">
-                        <div className="bg-purple-50 p-2 rounded-md">
-                          <FaClock className="text-purple-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Availability</p>
-                          <p className="font-medium text-gray-900">{doctor.availability}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fee and Location in a separate row */}
-                    <div className="mt-4 grid grid-cols-2 gap-4">
-                      {/* Consultation Fee */}
-                      <div className="flex items-center gap-2">
-                        <div className="bg-teal-50 p-2 rounded-md">
-                          <FaMoneyBillWave className="text-teal-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Consultation Fee</p>
-                          <p className="font-medium text-gray-900">₹{doctor.consultation_fee_inr > 0 ? doctor.consultation_fee_inr : 'N/A'}</p>
-                        </div>
-                      </div>
-
-                      {/* Location */}
-                      {/* {doctor.hospital && doctor.hospital.address && (
-                        <div className="flex items-center gap-2">
-                          <div className="bg-gray-50 p-2 rounded-md">
-                            <MdLocalHospital className="text-gray-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">Location</p>
-                            <p className="font-medium text-gray-900">{doctor.hospital.address}</p>
-                          </div>
-                        </div>
-                      )} */}
-                    </div>
-
-                    {/* Book Appointment button */}
-                    <button 
-                      onClick={() => handleBookAppointment(doctor)}
-                      className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <FaPhoneAlt />
-                      Book Appointment
-                    </button>
-                  </div>
-                </div>
+                <DoctorCard
+                  key={doctor.id}
+                  doctor={doctor}
+                  onBookAppointment={handleBookAppointment}
+                  searchQuery={searchQuery}
+                />
               ))}
             </div>
 
-            {/* Add pagination controls */}
             {doctors.length > 0 && (
               <div className="flex justify-center mt-8 gap-2">
                 <button
@@ -1219,7 +1167,6 @@ const DoctorFinder = () => {
         )}
       </div>
 
-      {/* Booking Modal */}
       {showBookingModal && selectedDoctor && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">

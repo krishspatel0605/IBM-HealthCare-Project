@@ -103,18 +103,21 @@ export default function UserHome() {
   const fetchAppointments = async () => {
     try {
       const response = await axiosInstance.get('/user-appointments/');
-      if (response.data) {
-        // Filter to keep only upcoming appointments
-        const now = new Date();
-        const upcomingAppts = response.data.filter(appt => 
-          new Date(appt.appointment_date) > now
-        );
-        setUpcomingAppointments(upcomingAppts);
+      console.log('Appointments response:', response.data); // Add logging
+      if (Array.isArray(response.data)) {
+        setUpcomingAppointments(response.data);
+        // Update cache with new data
+        localStorage.setItem('cached_appointments', JSON.stringify({
+          data: response.data,
+          timestamp: Date.now()
+        }));
       } else {
+        console.error('Invalid appointments data format:', response.data);
         setUpcomingAppointments([]);
       }
     } catch (err) {
       console.error("Failed to fetch appointments:", err);
+      toast.error("Failed to load appointments. Please try again.");
       setUpcomingAppointments([]);
     }
   };
@@ -361,12 +364,17 @@ export default function UserHome() {
       });
 
       if (response.data) {
+        // Clear appointments cache
+        localStorage.removeItem('cached_appointments');
+        
+        // Fetch fresh appointments
+        await fetchAppointments();
+        
         toast.success('Great! Your appointment has been successfully booked. A confirmation email will be sent shortly.');
         setShowBookingModal(false);
         setSelectedDoctor(null);
         setBookingDate('');
         setBookingReason('');
-        fetchAppointments(); // Refresh the appointments list
         
         // Show appointment details in a more visible notification
         toast.success(`Appointment Details:
@@ -375,6 +383,7 @@ export default function UserHome() {
         ${bookingReason ? `Reason: ${bookingReason}` : ''}`);
       }
     } catch (error) {
+      console.error('Booking error:', error);
       toast.error(error.response?.data?.error || 'Failed to book appointment');
     } finally {
       setIsBooking(false);

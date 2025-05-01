@@ -45,38 +45,33 @@ recommender = None
 def recommend_nearest_doctors(request):
     """
     Recommend nearest doctors based on user's latitude and longitude.
+    Primary sorting is by location, secondary by medical relevance.
     """
-    user_latitude = request.GET.get('user_latitude')
-    user_longitude = request.GET.get('user_longitude')
-    query = request.GET.get('query', '').strip()
-    specialization = request.GET.get('specialization')
-    limit = int(request.GET.get('limit', 10))
-    max_distance = float(request.GET.get('max_distance_km', 20.0))
-
-    # Validate location data
-    if user_latitude is None or user_longitude is None:
-        return Response(
-            {'error': 'User location not provided'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
     try:
+        user_latitude = request.GET.get('user_latitude')
+        user_longitude = request.GET.get('user_longitude')
+        query = request.GET.get('query', '').strip()
+        specialization = request.GET.get('specialization')
+        limit = int(request.GET.get('limit')) if request.GET.get('limit') else None
+        max_distance_km = float(request.GET.get('max_distance_km', 30.0))
+
+        # Validate location data
+        if user_latitude is None or user_longitude is None:
+            return Response(
+                {'error': 'User location not provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         user_latitude = float(user_latitude)
         user_longitude = float(user_longitude)
-    except ValueError:
-        return Response(
-            {'error': 'Invalid latitude or longitude values'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
 
-    try:
-        # Initialize location-based recommender
-        location_recommender = LocationBasedDoctorRecommender()
-        
         # Get all doctors data for training
         doctors_data = Doctor.objects.select_related('hospital').all()
         if not doctors_data:
-            return Response({'error': 'No doctors available in the system'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'No doctors available in the system'},
+                status=status.HTTP_404_NOT_FOUND
+            )
             
         # Prepare data for the recommender
         doctors_list = []
@@ -90,6 +85,9 @@ def recommend_nearest_doctors(request):
                 'patients_treated': doc.patients_treated,
                 'conditions_treated': doc.conditions_treated,
                 'consultation_fee_inr': doc.consultation_fee_inr,
+                'availability': doc.availability,
+                'mobile_number': doc.mobile_number,
+                'success_rate': doc.success_rate,
                 'latitude': float(doc.hospital.latitude),
                 'longitude': float(doc.hospital.longitude),
                 'hospital': {
@@ -100,25 +98,74 @@ def recommend_nearest_doctors(request):
                 }
             }
             doctors_list.append(doc_data)
-            
-        # Train the recommender with all doctors
-        location_recommender.fit(doctors_list)
+
+        # Preprocess all doctor data
+        processed_doctors = batch_preprocess_doctors(doctors_list)
+
+        # Try to load existing model first
+        model_path = get_model_path()
+        recommender = LocationBasedDoctorRecommender(distance_weight=0.7)
         
-        # Get recommendations
-        recommendations = location_recommender.recommend_doctors(
+        try:
+            if recommender.load(model_path):
+                logger.info("Loaded existing model with historical weights")
+            else:
+                logger.info("No existing model found, training new model")
+        except Exception as e:
+            logger.warning(f"Could not load existing model: {e}, training new one")
+
+        # Train/update the model with preprocessed data
+        if not recommender.fit(processed_doctors):
+            return Response(
+                {'error': 'Failed to train recommendation model'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Save the updated model
+        try:
+            recommender.save(model_path)
+            logger.info("Saved updated model with new weights")
+        except Exception as e:
+            logger.warning(f"Could not save model: {e}")
+        
+        # Get recommendations with location as primary factor
+        recommendations = recommender.recommend_doctors(
             user_latitude=user_latitude,
             user_longitude=user_longitude,
             query=query,
             specialization=specialization,
-            limit=limit,
-            max_distance_km=max_distance
+            max_distance_km=max_distance_km,
+            limit=limit  # Pass None or specific limit
         )
         
-        return Response({
-            'recommended_doctors': recommendations,
-            'count': len(recommendations)
-        })
+        if not recommendations:
+            msg = f"No doctors found within {max_distance_km} km"
+            if query:
+                msg += f" matching '{query}'"
+            if specialization:
+                msg += f" with specialization '{specialization}'"
+            return Response({'message': msg, 'recommended_doctors': []})
 
+        # Include score details in response for transparency
+        response_data = {
+            'recommended_doctors': recommendations,
+            'count': len(recommendations),
+            'weights_used': getattr(recommender, 'condition_weights_history', {}).get(query.lower() if query else '', recommender._get_default_weights()),
+            'recommendation_details': {
+                'distance_weight': recommender.distance_weight,
+                'max_distance': max_distance_km,
+                'query_processed': query.lower() if query else None,
+                'specialization_matched': specialization.lower() if specialization else None
+            }
+        }
+
+        return Response(response_data)
+
+    except ValueError:
+        return Response(
+            {'error': 'Invalid latitude or longitude values'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     except Exception as e:
         logger.error(f"Error in recommend_nearest_doctors: {str(e)}")
         return Response(
@@ -235,38 +282,126 @@ def recommend_doctors(request):
     """
     Recommend doctors based on query condition using ML model
     """
-    query = request.GET.get('query', '').strip().lower()  # Convert to lowercase
-    page = int(request.GET.get('page', 1))
-    limit = int(request.GET.get('limit', 10))
-    specialization = request.GET.get('specialization')
-
     try:
-        # If query is empty, return all doctors
-        if not query:
-            doctors = Doctor.objects.select_related('hospital').all()[:limit]
-            serializer = DoctorSerializer(doctors, many=True)
+        query = request.GET.get('query', '').strip()
+        specialization = request.GET.get('specialization')
+        user_latitude = request.GET.get('user_latitude')
+        user_longitude = request.GET.get('user_longitude')
+        limit = int(request.GET.get('limit', 10))
+        
+        # Get base queryset with select_related for hospital
+        doctors = Doctor.objects.select_related('hospital').all()
+        
+        if not doctors:
             return Response({
-                'recommended_doctors': serializer.data,
-                'count': len(doctors)
+                'recommended_doctors': [],
+                'count': 0,
+                'message': 'No doctors found in the database'
             })
 
-        # First try direct match with conditions_treated
-        doctors = Doctor.objects.select_related('hospital').filter(
-            Q(conditions_treated__icontains=query) |  # Case-insensitive condition match
-            Q(specialization__icontains=query)  # Case-insensitive specialization match
-        )
+        # First try exact matches
+        if query:
+            exact_matches = doctors.filter(
+                Q(specialization__icontains=query) |
+                Q(conditions_treated__icontains=query.lower())
+            )
+            
+            if exact_matches.exists():
+                serializer = DoctorSerializer(exact_matches, many=True)
+                return Response({
+                    'recommended_doctors': serializer.data,
+                    'count': exact_matches.count(),
+                    'matched_by': 'exact_match'
+                })
 
-        if doctors.exists():
-            doctors = doctors[:limit]
-            serializer = DoctorSerializer(doctors, many=True)
-            return Response({
-                'recommended_doctors': serializer.data,
-                'count': len(doctors)
-            })
-
-        # If no direct matches, use the ML recommender
+        # If no exact matches or no query, use the ML recommender
         recommender = DoctorRecommender(n_estimators=100)
-        # Rest of the existing recommendation logic...
+        doctors_data = []
+        
+        for doc in doctors:
+            doc_data = {
+                'id': doc.id,
+                'name': doc.name,
+                'specialization': doc.specialization,
+                'experience_years': doc.experience_years,
+                'rating': doc.rating,
+                'patients_treated': doc.patients_treated,
+                'conditions_treated': doc.conditions_treated,
+                'consultation_fee_inr': doc.consultation_fee_inr,
+                'availability': doc.availability,
+                'mobile_number': doc.mobile_number,
+                'success_rate': doc.success_rate,
+                'hospital': {
+                    'id': doc.hospital.id,
+                    'name': doc.hospital.name,
+                    'address': doc.hospital.address,
+                    'latitude': float(doc.hospital.latitude),
+                    'longitude': float(doc.hospital.longitude)
+                }
+            }
+            doctors_data.append(doc_data)
+
+        # Train the recommender
+        if not recommender.fit(doctors_data):
+            return Response({
+                'error': 'Failed to train recommendation model'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Get recommendations
+        recommendations = recommender.recommend_doctors(
+            query=query,
+            specialization=specialization,
+            limit=limit
+        )
+        
+        # If we have location data, sort by distance
+        if user_latitude and user_longitude:
+            try:
+                user_lat = float(user_latitude)
+                user_lon = float(user_longitude)
+                
+                # Add distance to each recommendation
+                for rec in recommendations:
+                    hospital = rec.get('hospital', {})
+                    if hospital and 'latitude' in hospital and 'longitude' in hospital:
+                        from math import radians, cos, sin, asin, sqrt
+                        
+                        def haversine_distance(lat1, lon1, lat2, lon2):
+                            R = 6371  # Earth radius in kilometers
+                            
+                            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+                            dlat = lat2 - lat1
+                            dlon = lon2 - lon1
+                            
+                            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                            c = 2 * asin(sqrt(a))
+                            return R * c
+                        
+                        rec['distance_km'] = round(haversine_distance(
+                            user_lat, user_lon,
+                            float(hospital['latitude']),
+                            float(hospital['longitude'])
+                        ), 2)
+                    else:
+                        rec['distance_km'] = float('inf')
+                
+                # Sort by distance first, then by score
+                recommendations.sort(key=lambda x: (
+                    x.get('distance_km', float('inf')),
+                    -(x.get('rating', 0) * 0.4 + 
+                      min(x.get('experience_years', 0) / 20, 1.0) * 0.3 +
+                      x.get('success_rate', 0) * 0.3)
+                ))
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error processing location data: {e}")
+                # Continue without location sorting if there's an error
+                pass
+
+        return Response({
+            'recommended_doctors': recommendations[:limit],
+            'count': len(recommendations),
+            'matched_by': 'ml_recommender'
+        })
 
     except Exception as e:
         logger.error(f"Recommendation error: {str(e)}")
@@ -485,47 +620,61 @@ def doctor_appointments(request):
     try:
         user = request.user
         print(f"Fetching appointments for user: {user.email} with role: {user.role}")
+        
         if user.role != 'doctor':
             return Response({
                 'error': 'Only doctors can access this endpoint'
             }, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            doctor = Doctor.objects.get(mobile_number=user.mobile_number)
+            # Try to find doctor by mobile number first
+            doctor = Doctor.objects.filter(
+                Q(mobile_number=user.mobile_number) | Q(name=user.name)
+            ).first()
+            
+            if not doctor:
+                return Response({
+                    'error': 'Doctor profile not found. Please complete your doctor profile first.'
+                }, status=status.HTTP_404_NOT_FOUND)
+
             print(f"Found doctor: {doctor.name} with id: {doctor.id}")
-        except Doctor.DoesNotExist:
-            print(f"No doctor found for user with mobile: {user.mobile_number}")
+            
+            appointments = Appointment.objects.filter(
+                doctor=doctor
+            ).select_related('user').order_by('-appointment_date')
+            
+            print(f"Found {appointments.count()} appointments")
+
+            now = timezone.now()
+            appointment_data = []
+
+            for appointment in appointments:
+                is_upcoming = appointment.appointment_date > now
+                data = {
+                    'id': appointment.id,
+                    'appointment_date': appointment.appointment_date,
+                    'reason': appointment.reason,
+                    'created_at': appointment.created_at,
+                    'user_name': appointment.user.name,
+                    'user_email': appointment.user.email,
+                    'user_mobile': appointment.user.mobile_number,
+                    'status': 'Upcoming' if is_upcoming else 'Past'
+                }
+                appointment_data.append(data)
+
+            print(f"Returning {len(appointment_data)} appointments")
+            return Response(appointment_data)
+
+        except Exception as e:
+            print(f"Error fetching appointments: {str(e)}")
             return Response({
-                'error': 'Doctor profile not found. Please complete your doctor profile first.'
-            }, status=status.HTTP_404_NOT_FOUND)
-
-        appointments = Appointment.objects.filter(doctor=doctor).select_related('user').order_by('appointment_date')
-        print(f"Found {appointments.count()} appointments")
-
-        now = timezone.now()
-        appointment_data = []
-
-        for appointment in appointments:
-            is_upcoming = appointment.appointment_date > now
-            data = {
-                'id': appointment.id,
-                'appointment_date': appointment.appointment_date,
-                'reason': appointment.reason,
-                'created_at': appointment.created_at,
-                'user_name': appointment.user.name,  # Using the name field directly
-                'user_email': appointment.user.email,
-                'user_mobile': appointment.user.mobile_number,
-                'status': 'Upcoming' if is_upcoming else 'Past'
-            }
-            appointment_data.append(data)
-
-        print(f"Returning {len(appointment_data)} appointments")
-        return Response(appointment_data)
+                'error': f'Failed to fetch appointments: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     except Exception as e:
-        print(f"Error fetching appointments: {str(e)}")
+        print(f"Error in doctor_appointments: {str(e)}")
         return Response({
-            'error': f'Failed to fetch appointments: {str(e)}'
+            'error': 'An error occurred while fetching appointments'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserAppointmentsView(APIView):

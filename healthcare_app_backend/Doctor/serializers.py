@@ -10,11 +10,22 @@ class HospitalSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'address', 'latitude', 'longitude']
 
 class DoctorSerializer(serializers.ModelSerializer):
-    hospital = HospitalSerializer(read_only=True)
+    hospital = HospitalSerializer()
     
     class Meta:
         model = Doctor
-        fields = '__all__'
+        fields = ['id', 'name', 'specialization', 'experience_years', 'mobile_number',
+                 'availability', 'consultation_fee_inr', 'patients_treated', 'rating',
+                 'conditions_treated', 'success_rate', 'hospital']
+        
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Ensure conditions_treated is always a list
+        if data['conditions_treated'] is None:
+            data['conditions_treated'] = []
+        elif isinstance(data['conditions_treated'], str):
+            data['conditions_treated'] = [x.strip() for x in data['conditions_treated'].split(',')]
+        return data
 
 class DoctorRegistrationSerializer(serializers.ModelSerializer):
     hospital_name = serializers.CharField(required=True)

@@ -55,36 +55,51 @@ export default function DoctorDashboardPage() {
     try {
       setLoading(true);
       const response = await axiosInstance.get('/doctor-appointments/');
+      console.log('Doctor appointments response:', response.data); // Add logging
 
       if (Array.isArray(response.data)) {
-        setAppointments(response.data);
-
         const now = new Date();
-        const today = now.toISOString().split('T')[0];
+        const sortedAppointments = response.data.sort((a, b) => 
+          new Date(b.appointment_date) - new Date(a.appointment_date)
+        );
+        
+        // Add status based on date and completion
+        const appointmentsWithStatus = sortedAppointments.map(app => ({
+          ...app,
+          status: app.status || (new Date(app.appointment_date) > now ? 'Scheduled' : 'Past')
+        }));
 
-        const todayAppointments = response.data.filter(
-          (app) =>
-            new Date(app.appointment_date).toISOString().startsWith(today)
+        setAppointments(appointmentsWithStatus);
+
+        const today = now.toISOString().split('T')[0];
+        const todayAppointments = appointmentsWithStatus.filter(
+          (app) => new Date(app.appointment_date).toISOString().startsWith(today)
         ).length;
 
-        const upcomingAppointments = response.data.filter(
+        const upcomingAppointments = appointmentsWithStatus.filter(
           (app) => new Date(app.appointment_date) > now
         ).length;
 
         setStats({
           todayAppointments,
-          totalAppointments: response.data.length,
+          totalAppointments: appointmentsWithStatus.length,
           upcomingAppointments,
         });
       } else {
+        console.error('Invalid appointments data format:', response.data);
         throw new Error('Invalid response format');
       }
     } catch (err) {
       console.error('Error fetching appointments:', err);
-      const errorMessage =
-        err.response?.data?.error || 'Failed to load appointments';
+      const errorMessage = err.response?.data?.error || 'Failed to load appointments';
       setError(errorMessage);
       toast.error(errorMessage);
+      setAppointments([]); // Clear appointments on error
+      setStats({
+        todayAppointments: 0,
+        totalAppointments: 0,
+        upcomingAppointments: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -192,88 +207,46 @@ export default function DoctorDashboardPage() {
 
       {/* Main Content */}
       <main className="flex-1 container mx-auto px-4 py-8">
-            {activeTab === 'dashboard' && (
-        <div className="space-y-8">
-          <h2 className="text-2xl font-semibold text-gray-800">Dashboard Overview</h2>
+        {activeTab === 'dashboard' && (
+          <div className="space-y-8">
+            <h2 className="text-2xl font-semibold text-gray-800">Dashboard Overview</h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-xl shadow hover:shadow-md transition duration-300">
-              <p className="text-sm text-gray-500 mb-1">Today’s Appointments</p>
-              <p className="text-2xl font-bold text-blue-600">{appointments.filter(app => new Date(app.date).toDateString() === new Date().toDateString()).length}</p>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-xl shadow hover:shadow-md transition duration-300">
+                <p className="text-sm text-gray-500 mb-1">Today's Appointments</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.todayAppointments}</p>
+              </div>
 
-            <div className="bg-white p-6 rounded-xl shadow hover:shadow-md transition duration-300">
-              <p className="text-sm text-gray-500 mb-1">Total Appointments</p>
-              <p className="text-2xl font-bold text-green-600">{appointments.length}</p>
-            </div>
+              <div className="bg-white p-6 rounded-xl shadow hover:shadow-md transition duration-300">
+                <p className="text-sm text-gray-500 mb-1">Total Appointments</p>
+                <p className="text-2xl font-bold text-green-600">{stats.totalAppointments}</p>
+              </div>
 
-            <div className="bg-white p-6 rounded-xl shadow hover:shadow-md transition duration-300">
-              <p className="text-sm text-gray-500 mb-1">Upcoming Appointments</p>
-              <p className="text-2xl font-bold text-yellow-600">
-                {appointments.filter(app => new Date(app.date) > new Date()).length}
-              </p>
+              <div className="bg-white p-6 rounded-xl shadow hover:shadow-md transition duration-300">
+                <p className="text-sm text-gray-500 mb-1">Upcoming Appointments</p>
+                <p className="text-2xl font-bold text-yellow-600">{stats.upcomingAppointments}</p>
+              </div>
             </div>
-            
           </div>
-          <div className="bg-white p-6 rounded-xl shadow mt-8">
-  <h3 className="text-lg font-semibold text-gray-700 mb-4">Appointments This Week</h3>
-  <Bar
-    data={{
-      labels: [...Array(7)].map((_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (6 - i));
-        return date.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue...
-      }),
-      datasets: [{
-        label: 'Appointments',
-        backgroundColor: '#3B82F6',
-        borderRadius: 5,
-        data: [...Array(7)].map((_, i) => {
-          const targetDate = new Date();
-          targetDate.setDate(targetDate.getDate() - (6 - i));
-          const dayString = targetDate.toDateString();
-          return appointments.filter(app => new Date(app.date).toDateString() === dayString).length;
-        }),
-      }]
-    }}
-    options={{
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            stepSize: 1,
-            precision: 0,
-          },
-        },
-      },
-    }}
-  />
-</div>
-
-        </div>
-      )}
-
+        )}
 
         {activeTab === 'appointments' && (
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">Appointments Management</h2>
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search appointments..."
-                    className="pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <FaSearch className="absolute left-3 top-3 text-gray-400" />
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="text-2xl font-bold text-gray-800">Appointments Management</h2>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search appointments..."
+                      className="pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <FaSearch className="absolute left-3 top-3 text-gray-400" />
+                  </div>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                  <FiCalendar className="text-lg" />
-                  New Appointment
-                </button>
               </div>
             </div>
 
@@ -291,42 +264,67 @@ export default function DoctorDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {appointments.map((appointment) => (
-                    <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">{appointment.user_name}</td>
-                      <td className="px-6 py-4">{appointment.user_email}</td>
-                      <td className="px-6 py-4">{appointment.user_mobile}</td>
-                      <td className="px-6 py-4">{new Date(appointment.appointment_date).toLocaleString()}</td>
-                      <td className="px-6 py-4">{appointment.reason}</td>
-                      <td className="px-6 py-4">{appointment.status}</td>
-                      <td className="px-6 py-4">
-                        <div className="relative">
-                          <button className="p-2 hover:bg-gray-100 rounded-lg group">
-                            <FaEllipsisV className="text-gray-600" />
-                          </button>
-                          <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg py-2 hidden group-hover:block z-10">
-                            <button
-                              onClick={() => handleAppointmentAction('edit', appointment.id)}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-100"
-                            >
-                              Edit
+                  {appointments
+                    .filter(appointment => {
+                      const searchLower = searchQuery.toLowerCase();
+                      return (
+                        appointment.user_name?.toLowerCase().includes(searchLower) ||
+                        appointment.user_email?.toLowerCase().includes(searchLower) ||
+                        appointment.user_mobile?.includes(searchQuery) ||
+                        appointment.reason?.toLowerCase().includes(searchLower)
+                      );
+                    })
+                    .sort((a, b) => new Date(b.appointment_date) - new Date(a.appointment_date))
+                    .map((appointment) => (
+                      <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">{appointment.user_name}</td>
+                        <td className="px-6 py-4">{appointment.user_email}</td>
+                        <td className="px-6 py-4">{appointment.user_mobile}</td>
+                        <td className="px-6 py-4">
+                          <span className={
+                            new Date(appointment.appointment_date) > new Date()
+                              ? 'text-green-600'
+                              : 'text-gray-600'
+                          }>
+                            {new Date(appointment.appointment_date).toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">{appointment.reason || 'Not specified'}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded-full text-sm ${
+                            appointment.status === 'completed'
+                              ? 'bg-green-100 text-green-800'
+                              : appointment.status === 'cancelled'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {appointment.status || 'Scheduled'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="relative">
+                            <button className="p-2 hover:bg-gray-100 rounded-lg group">
+                              <FaEllipsisV className="text-gray-600" />
                             </button>
-                            <button
-                              onClick={() => handleAppointmentAction('cancel', appointment.id)}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-100"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleAppointmentAction('complete', appointment.id)}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-100"
-                            >
-                              Mark Complete
-                            </button>
+                            <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg py-2 hidden group-hover:block z-10">
+                              <button
+                                onClick={() => handleAppointmentAction('complete', appointment.id)}
+                                className="w-full px-4 py-2 text-left hover:bg-gray-100"
+                                disabled={appointment.status === 'completed'}
+                              >
+                                Mark Complete
+                              </button>
+                              <button
+                                onClick={() => handleAppointmentAction('cancel', appointment.id)}
+                                className="w-full px-4 py-2 text-left hover:bg-gray-100 text-red-600"
+                                disabled={appointment.status === 'cancelled'}
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
                   ))}
                 </tbody>
               </table>

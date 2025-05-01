@@ -214,8 +214,8 @@ class ActivationView(APIView):
                         hospital = Hospital.objects.create(
                             name=hospital_name,
                             address=address,
-                            latitude=float(user_data.get('latitude', 0)),
-                            longitude=float(user_data.get('longitude', 0)),
+                            latitude=float(user_data.get('latitude', 0.0)) if user_data.get('latitude') is not None else 0.0,
+                            longitude=float(user_data.get('longitude', 0.0)) if user_data.get('longitude') is not None else 0.0,
                             specialization=user_data.get('specialization', 'General'),
                             available_beds=0,
                             diseases_treated=[]
