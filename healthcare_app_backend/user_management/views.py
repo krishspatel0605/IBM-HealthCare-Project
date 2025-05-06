@@ -712,3 +712,5 @@ class RecommendedConditionsView(APIView):
                 "error": "Failed to fetch recommended conditions",
                 "detail": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+

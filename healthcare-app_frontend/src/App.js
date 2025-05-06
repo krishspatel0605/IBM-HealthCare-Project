@@ -9,12 +9,13 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import VerifyLoginOTP from './components/VerifyLoginOTP';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
-import DoctorDashboardPage from './components/AdminDashBoard/DoctorDashboardPage';
+import DoctorDashboardPage from './components/DoctorDashboardPage';
 import About from './components/About';
 import DoctorFinder from './components/DoctorFinder';
 import Contact from './components/Contact';
 import Privacy from './components/Privacy';
 import Terms from './components/Terms';
+import AdminDashboardPage from './components/AdminDashBoard/dashboard';
 
 function App() {
   // Effect to handle initial auth check
@@ -63,8 +64,10 @@ function App() {
         <Route path="/activate" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        
         {/* Protected Routes */}
+        <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+          <Route path="/admin-dashboard" element={<AdminDashboardPage />} />
+        </Route>
         <Route element={<ProtectedRoute allowedRoles={["doctor"]} />}>
           <Route path="/dashboard" element={<DoctorDashboardPage />} />
         </Route>
@@ -78,6 +81,9 @@ function App() {
 }
 
 // Component to handle public routes (login, register) and redirect if authenticated
+
+
+// Component to handle public routes (login, register) and redirect if authenticated
 function PublicRoute({ children }) {
   const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
   const role = localStorage.getItem("user_role");
@@ -88,7 +94,7 @@ function PublicRoute({ children }) {
       try {
         const decodedToken = JSON.parse(atob(token.split('.')[1]));
         const currentTime = Date.now() / 1000;
-        
+
         if (decodedToken.exp < currentTime) {
           // Token is expired
           localStorage.removeItem("auth_token");
@@ -104,9 +110,15 @@ function PublicRoute({ children }) {
     }
   }, [token]);
 
-  // Only redirect if there's both a valid token and role
+  // Redirect based on role
   if (token && role) {
-    return <Navigate to={role === "doctor" ? "/dashboard" : "/userhome"} replace />;
+    if (role === "admin") {
+      return <Navigate to="/admin-dashboard" replace />;
+    } else if (role === "doctor") {
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      return <Navigate to="/userhome" replace />;
+    }
   }
 
   return children;

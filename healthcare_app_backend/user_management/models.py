@@ -25,9 +25,10 @@ class CustomUserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('role', 'doctor')  # Admin role removed
+        extra_fields.setdefault('role', 'admin')  # Admin role removed
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
         return self.create_user(email, password, **extra_fields)
 
 # Custom User Model with Input Validation
@@ -35,6 +36,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
         ('user', 'User'),
         ('doctor', 'Doctor'),
+        ('admin', 'Admin'),
+        
     ]
 
     email = models.EmailField(

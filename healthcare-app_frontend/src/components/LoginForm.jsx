@@ -52,10 +52,12 @@ const LoginForm = () => {
         setMessage('Login successful! Redirecting...');
         
         // Navigate based on role
-        if (response.data.role === 'user') {
-          navigate('/userhome', { replace: true });
+        if (response.data.role === 'admin') {
+          navigate('/admin-dashboard', { replace: true });
         } else if (response.data.role === 'doctor') {
           navigate('/dashboard', { replace: true });
+        } else if (response.data.role === 'user') {
+          navigate('/userhome', { replace: true });
         } else {
           navigate('/', { replace: true });
         }
