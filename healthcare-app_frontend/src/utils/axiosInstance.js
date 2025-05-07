@@ -2,26 +2,24 @@ import axios from 'axios';
 
 // Set the base API URL with fallback options
 const getApiBaseUrl = () => {
+  // Fallback URLs
   const possibleUrls = [
     'http://localhost:8000/api',
     'http://127.0.0.1:8000/api',
+    'https://13.126.110.97/api',
     window.location.origin + '/api',
   ];
-  
-  const storedUrl = localStorage.getItem('api_base_url');
-  if (storedUrl) {
-    return storedUrl;
-  }
 
-  return possibleUrls[0];
+  // Disabled localStorage override for stability
+  return possibleUrls[0]; // Always use localhost:8000
 };
 
 const axiosInstance = axios.create({
   baseURL: getApiBaseUrl(),
-  timeout: 30000, // 30 second timeout
+  timeout: 30000,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add request interceptor to add auth token
@@ -33,9 +31,7 @@ axiosInstance.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Add response interceptor for retries and error handling
@@ -44,18 +40,15 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle token refresh
+    // Token expired — try refreshing
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
       try {
         const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
+        if (!refreshToken) throw new Error('No refresh token');
 
         const response = await axios.post(`${getApiBaseUrl()}/token/refresh/`, {
-          refresh: refreshToken
+          refresh: refreshToken,
         });
 
         if (response.data.access) {
@@ -70,29 +63,30 @@ axiosInstance.interceptors.response.use(
       }
     }
 
-    // Handle timeouts with retries
+    // Retry on timeout
     if (error.code === 'ECONNABORTED' && !originalRequest._retry) {
       originalRequest._retry = true;
-      // Exponential backoff: wait 2s before retrying
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      console.log('Request timed out, retrying...');
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.warn('Request timed out. Retrying...');
       return axiosInstance(originalRequest);
     }
 
-    // Handle network errors with alternative URLs
+    // Handle network errors with alternative base URLs
     if (error.message === 'Network Error' && !originalRequest._urlRetry) {
       originalRequest._urlRetry = true;
-      const currentUrl = localStorage.getItem('api_base_url');
+
       const possibleUrls = [
         'http://localhost:8000/api',
         'http://127.0.0.1:8000/api',
-        window.location.origin + '/api'
+        'https://13.126.110.97/api',
+        window.location.origin + '/api',
       ];
-      
+
+      const currentUrl = axiosInstance.defaults.baseURL;
       const currentIndex = possibleUrls.indexOf(currentUrl);
       const nextUrl = possibleUrls[(currentIndex + 1) % possibleUrls.length];
-      
-      localStorage.setItem('api_base_url', nextUrl);
+
+      axiosInstance.defaults.baseURL = nextUrl;
       originalRequest.baseURL = nextUrl;
       return axiosInstance(originalRequest);
     }

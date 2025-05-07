@@ -291,7 +291,7 @@ export default function DoctorPlatform() {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <FaUserMd className="text-3xl text-blue-600" />
-                <span className="text-2xl font-bold">MedConnect</span>
+                <span className="text-2xl font-bold">Healthcare</span>
               </div>
               <p className="text-gray-400">
                 Connecting medical professionals and patients for better healthcare outcomes
@@ -315,7 +315,7 @@ export default function DoctorPlatform() {
               <h4 className="text-lg font-bold mb-4">Contact</h4>
               <ul className="space-y-2 text-gray-400">
                 <li>Doctor Support: +1 (555) 123-4567</li>
-                <li>Email: doctors@medconnect.com</li>
+                <li>Email: doctors@healthcare.com</li>
                 <li>Emergency: 24/7 Support</li>
               </ul>
             </div>

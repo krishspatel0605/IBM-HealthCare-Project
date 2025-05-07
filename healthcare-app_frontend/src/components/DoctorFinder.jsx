@@ -25,7 +25,7 @@ import { toast } from 'react-toastify';
 import _ from 'lodash';
 
 // Base API URL and configuration
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://13.126.110.97/api';
 
 // Configure axios instance
 const axiosInstance = axios.create({
@@ -131,7 +131,8 @@ const tryAlternativeApiUrls = async (endpoint) => {
   const baseUrls = [
     'http://localhost:8000/api',
     'http://127.0.0.1:8000/api',
-    window.location.origin + '/api'
+    "https://13.126.110.97/api",
+    window.location.origin + '/api' 
   ];
 
   for (let baseUrl of baseUrls) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { FaKey, FaExclamationTriangle } from "react-icons/fa";
-import healthcareImage from "../assets/healthcare.jpg"; // Ensure correct path
+import healthcareImage from "../assets/healthcare.jpg";
 
 const maskEmail = (email) => {
   if (!email || !email.includes("@")) return "";
@@ -22,18 +22,22 @@ const VerifyLoginOTP = () => {
   const email = searchParams.get("email");
 
   useEffect(() => {
-    // Redirect to login if no email is present
     if (!email) {
       setError("Email is missing. Please try logging in again.");
       setTimeout(() => navigate("/login"), 2000);
       return;
     }
 
-    // Check if already authenticated
     const token = localStorage.getItem("auth_token") || sessionStorage.getItem("auth_token");
     if (token) {
       const role = localStorage.getItem("user_role");
-      navigate(role === "doctor" ? "/dashboard" : "/userhome", { replace: true });
+      if (role === "doctor") {
+        navigate("/dashboard", { replace: true });
+      } else if (role === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/userhome", { replace: true });
+      }
     }
   }, [email, navigate]);
 
@@ -72,37 +76,38 @@ const VerifyLoginOTP = () => {
       setError("Please enter a valid 6-digit OTP.");
       return;
     }
-  
+
     setLoading(true);
     setError("");
-    
+
     try {
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL}/api/verify-login-otp/`,
         { email, email_otp: otpCode.trim() },
         { withCredentials: true }
       );
-  
+
       const { access, refresh, role } = response.data;
-  
+
       if (access && refresh && role) {
-        // Store tokens
         localStorage.setItem("auth_token", access);
         localStorage.setItem("refresh_token", refresh);
         localStorage.setItem("user_role", role);
-        
-        // Trigger storage event for other components
         window.dispatchEvent(new Event("storage"));
 
-        // Check for redirect URL
         const redirectUrl = sessionStorage.getItem('redirectUrl');
-        sessionStorage.removeItem('redirectUrl'); // Clean up
+        sessionStorage.removeItem('redirectUrl');
 
-        // Navigate to the appropriate route
         if (redirectUrl && redirectUrl !== '/login') {
           navigate(redirectUrl, { replace: true });
         } else {
-          navigate(role === "doctor" ? "/dashboard" : "/userhome", { replace: true });
+          if (role === "doctor") {
+            navigate("/dashboard", { replace: true });
+          } else if (role === "admin") {
+            navigate("/admin-dashboard", { replace: true });
+          } else {
+            navigate("/userhome", { replace: true });
+          }
         }
       } else {
         setError("Invalid response from server. Please try again.");
@@ -113,7 +118,7 @@ const VerifyLoginOTP = () => {
       setLoading(false);
     }
   };
-  
+
   const handleResendOTP = async () => {
     setTimer(30);
     setIsResendDisabled(true);
@@ -135,7 +140,7 @@ const VerifyLoginOTP = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-6">
       <div className="flex flex-col md:flex-row w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden">
-        {/* Left image section */}
+        {/* Image Section */}
         <div className="hidden md:block md:w-1/2 relative">
           <img src={healthcareImage} alt="Verify OTP" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-blue-800/50 flex items-end p-6 text-white">
@@ -146,20 +151,17 @@ const VerifyLoginOTP = () => {
           </div>
         </div>
 
-        {/* Right form section */}
+        {/* OTP Form Section */}
         <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
           <div className="text-center mb-6">
             <div className="inline-block bg-blue-100 p-4 rounded-full mb-4">
               <FaKey className="text-2xl text-blue-600" />
-            </div>            
+            </div>
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</h1>
-            <p className="text-gray-600">
-              Enter the OTP sent to <strong>{maskEmail(email)}</strong>
-            </p>
+            <p className="text-gray-600">Enter the OTP sent to <strong>{maskEmail(email)}</strong></p>
           </div>
 
           <div className="flex justify-center gap-2 mb-4">
-            {/* OTP Input Fields */}
             {otp.map((digit, index) => (
               <input
                 key={index}
@@ -174,7 +176,6 @@ const VerifyLoginOTP = () => {
             ))}
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 bg-red-50 p-3 rounded-lg text-red-600 mb-2">
               <FaExclamationTriangle className="flex-shrink-0" />
@@ -182,7 +183,6 @@ const VerifyLoginOTP = () => {
             </div>
           )}
 
-          {/* Verify Button */}
           <button
             onClick={handleVerify}
             disabled={loading}
@@ -191,7 +191,6 @@ const VerifyLoginOTP = () => {
             {loading ? "Verifying..." : "Verify OTP"}
           </button>
 
-          {/* Resend OTP */}
           <div className="text-center mt-6 text-sm">
             {timer > 0 ? (
               <span className="text-gray-500">Resend OTP in {timer}s</span>
@@ -210,7 +209,6 @@ const VerifyLoginOTP = () => {
             )}
           </div>
 
-          {/* Back to Login */}
           <div className="text-center mt-4">
             <button
               onClick={() => navigate("/login")}
@@ -220,9 +218,8 @@ const VerifyLoginOTP = () => {
             </button>
           </div>
         </div>
-
-        </div>
       </div>
+    </div>
   );
 };
 

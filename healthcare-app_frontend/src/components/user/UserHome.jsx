@@ -17,6 +17,7 @@ const getApiBaseUrl = () => {
   const possibleUrls = [
     'http://localhost:8000/api',
     'http://127.0.0.1:8000/api',
+    'https://13.126.110.97/api',
     window.location.origin + '/api',
   ];
   

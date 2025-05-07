@@ -47,5 +47,4 @@ urlpatterns = [
     
     # Test endpoint
     # path('test-doctor-creation/', TestDoctorCreationView.as_view(), name='test_doctor_creation'),
-
 ]

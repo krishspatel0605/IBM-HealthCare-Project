@@ -95,7 +95,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'Demo',
         'USER': 'postgres',
-        'PASSWORD': 'yash1009',
+        'PASSWORD': 'krish1023',
         'HOST': 'localhost',
         'PORT': '5432',
         }
@@ -188,6 +188,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+    'https://13.126.110.97',
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -220,7 +221,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
-FRONTEND_URL = 'http://localhost:3000'
+FRONTEND_URL = 'https://13.126.110.97'
 
 SIMPLE_JWT = {
     "ALGORITHM": "HS256",
@@ -236,7 +237,7 @@ EMAIL_HOST_USER = 'healthcare.project1224@gmail.com'  # Your email username
 EMAIL_HOST_PASSWORD = 'kpjgiqmdqbttiqxt'         # Your email password
 DEFAULT_FROM_EMAIL = 'noreply@example.com'
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000']
+CSRF_TRUSTED_ORIGINS = ['https://13.126.110.97']
 
 RECAPTCHA_SECRET_KEY = '6LftjRcrAAAAAMzzz5Mj2AMpGmHhYwUoswKQlvv2'
 
